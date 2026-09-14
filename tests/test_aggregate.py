@@ -106,3 +106,24 @@ def test_empty_inventory_returns_empty_data():
     assert result.average_score is None
     assert result.low == {}
     assert result.tails == {}
+
+
+@pytest.mark.parametrize(
+    ("score", "expected"),
+    [
+        (90.0, "90-91.9"),   # lower bound inclusive
+        (92.0, "92-92.9"),   # must not fall back into 90-91.9
+        (95.0, "95+"),       # last band open-ended above
+    ],
+)
+def test_band_boundaries_are_lower_inclusive_upper_exclusive(score, expected):
+    """Bands are [lower, upper). Pins the comparison operators.
+
+    Without this, flipping `<` to `<=` in _band_for passes the whole suite:
+    no other test uses a score sitting exactly on a boundary.
+    """
+    rows = [{
+        "iWine": "1", "Country": "Spain", "Valuation": "10.0",
+        "CT": str(score), "Currency": "DKK",
+    }]
+    assert [b.name for b in aggregate(rows).tails["score_band"]] == [expected]
