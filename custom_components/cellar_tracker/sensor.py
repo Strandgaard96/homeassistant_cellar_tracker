@@ -27,7 +27,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .aggregate import items_payload
 from .const import DOMAIN, LOW_CARDINALITY
 from .coordinator import CellarTrackerCoordinator
-from .naming import SLICE_DIMENSIONS, slugify
+from .naming import SLICE_DIMENSIONS, unique_slugs
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,11 +55,11 @@ class CellarValueSensor(_Base):
     _attr_native_unit_of_measurement = "bottles"
     _attr_icon = "mdi:bottle-wine"
 
-    def __init__(self, coordinator, dimension: str, value: str) -> None:
+    def __init__(self, coordinator, dimension: str, value: str, slug: str) -> None:
         super().__init__(coordinator)
         self._dimension = dimension
         self._value = value
-        self._attr_unique_id = f"{DOMAIN}_{dimension}_{slugify(value)}"
+        self._attr_unique_id = f"{DOMAIN}_{dimension}_{slug}"
         self._attr_name = f"Cellar Tracker {dimension} {value}"
 
     def _item(self):
@@ -183,8 +183,12 @@ def build_entities(coordinator) -> list[SensorEntity]:
     """Every entity this integration provides, for the current data."""
     entities: list[SensorEntity] = []
     for dimension in LOW_CARDINALITY:
-        for item in coordinator.data.low.get(dimension, []):
-            entities.append(CellarValueSensor(coordinator, dimension, item.name))
+        items = coordinator.data.low.get(dimension, [])
+        slugs = unique_slugs([item.name for item in items])
+        for item in items:
+            entities.append(
+                CellarValueSensor(coordinator, dimension, item.name, slugs[item.name])
+            )
     for dimension in SLICE_DIMENSIONS:
         entities.append(CellarSliceSensor(coordinator, dimension))
     entities.extend(_scalars(coordinator))
