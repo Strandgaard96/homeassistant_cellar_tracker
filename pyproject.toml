@@ -30,3 +30,7 @@ root = ["custom_components"]
 # homeassistant, pandas and cellartracker are provided by the HA runtime and
 # are not installed in this repo, so their imports cannot be resolved locally.
 unresolved-import = "ignore"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
