@@ -15,7 +15,7 @@
 - **Minimum Home Assistant: 2024.6.0.** Declare in `hacs.json` as `"homeassistant": "2024.6.0"`.
 - **`device_class: monetary` requires `state_class: total`.** `measurement` is invalid with it — `sensor/const.py:844` maps `MONETARY` to `{TOTAL}` only. Averages get no `device_class`.
 - **No `numpy` scalars in attributes or states.** `numpy.float64` is a `float` subclass and passes HA's encoder; `numpy.int64` is **not** an `int` subclass and raises `TypeError: Type is not JSON serializable: numpy.int64`. Cast with `int()` / `float()`.
-- **Attribute payload budget: ≤ 12 KiB serialised per entity, and `items` is capped at the top 100 entries by count.** Hard cap is `MAX_STATE_ATTRS_BYTES = 16384` (`recorder/db_schema.py:90`); over it the recorder stores `{}` for the entity's *entire* attribute dict. Measured: all 184 producers serialise to **17,112 bytes**, over the hard cap — hence the limit. 100 entries measure 9,300 bytes at realistic name lengths.
+- **Attribute payload budget: ≤ 12 KiB serialised per entity, and `items` is capped at the top 100 entries by count.** Hard cap is `MAX_STATE_ATTRS_BYTES = 16384` (`recorder/db_schema.py:90`); over it the recorder stores `{}` for the entity's *entire* attribute dict. Measured against the live cellar: all 184 producers serialise to **15,474 bytes**, over this budget and only just under the 16,384 hard cap — hence the limit. (An earlier synthetic estimate said 17,112; the real figure is lower but the conclusion is unchanged.) 100 entries measure ~9,300 bytes.
 - **`_unrecorded_attributes` must be a class attribute.** Instance attributes are ignored by the recorder.
 - **`homeassistant` IS installed in the test environment.** Measured: HA 2026.2.3 resolves alongside pandas and the full suite runs in ~2.3s. Modules may import Home Assistant at module level normally. `aggregate.py` and `naming.py` still stay HA-free, but for separation of concerns, not testability.
 - **Three frontend dependencies only:** mushroom, flex-table-card, card-mod. No `auto-entities`, no `apexcharts-card`, no `sankey-chart`, no custom Lovelace card.
@@ -645,7 +645,7 @@ And at the end of `aggregate`, before `return data`:
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q`
-Expected: PASS, 16 passed.
+Expected: PASS, 19 passed.
 
 - [ ] **Step 5: Lint and commit**
 
@@ -707,9 +707,10 @@ def test_payload_is_json_serialisable_with_native_types():
 
 
 def test_payload_is_capped_and_within_budget():
-    # 184 producers is the measured worst case for this cellar, and all of
-    # them serialise to 17112 bytes -- over the recorder's 16384 hard cap.
-    # Hence ITEMS_LIMIT.
+    # 184 producers is the measured worst case for this cellar. Against
+    # live data they serialise to 15474 bytes -- over the 12288 budget and
+    # only just under the recorder's 16384 hard cap. Hence ITEMS_LIMIT.
+    # Synthetic names here are longer, so this test sees a bigger number.
     rows = []
     for index in range(184):
         for _ in range(10):
