@@ -1,115 +1,199 @@
-"""Platform for sensor integration."""
+"""Cellar Tracker sensors.
+
+Two entity shapes, split by cardinality:
+
+  Low-cardinality dimensions (country, type, size, category, location,
+  color) get one numeric sensor per distinct value. These work in
+  numeric_state triggers, in templates without selectattr gymnastics, and
+  in voice assistants.
+
+  Long tails (producer, appellation, store, ...) get one sensor each whose
+  `items` attribute carries the breakdown. Templating against these needs
+  state_attr(...) | selectattr('name','eq',X) | map(attribute='count')
+  | first. That is the accepted cost of not creating 184 entities.
+"""
+
+from __future__ import annotations
+
 import logging
-import re
 
-from homeassistant.helpers.entity import Entity
-from homeassistant.util import Throttle
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from . import DOMAIN
+from .aggregate import items_payload
+from .const import DOMAIN, LOW_CARDINALITY
+from .coordinator import CellarTrackerCoordinator
+from .naming import SLICE_DIMENSIONS, slugify
 
 _LOGGER = logging.getLogger(__name__)
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Set up the sensor platform."""
-    # We only want this platform to be set up via discovery.
+
+class _Base(CoordinatorEntity[CellarTrackerCoordinator], SensorEntity):
+    """Shared availability policy."""
+
+    _attr_should_poll = False
+
+    @property
+    def available(self) -> bool:
+        """Stay available on stale data once any fetch has succeeded.
+
+        CoordinatorEntity.available defaults to last_update_success, which
+        would blank every entity on one failed refresh. Wrong for an
+        inventory that changes a few times a week.
+        """
+        return self.coordinator.ever_succeeded
+
+
+class CellarValueSensor(_Base):
+    """One distinct value of a low-cardinality dimension. State = bottles."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "bottles"
+    _attr_icon = "mdi:bottle-wine"
+
+    def __init__(self, coordinator, dimension: str, value: str) -> None:
+        super().__init__(coordinator)
+        self._dimension = dimension
+        self._value = value
+        self._attr_unique_id = f"{DOMAIN}_{dimension}_{slugify(value)}"
+        self._attr_name = f"Cellar Tracker {dimension} {value}"
+
+    def _item(self):
+        for item in self.coordinator.data.low.get(self._dimension, []):
+            if item.name == self._value:
+                return item
+        return None
+
+    @property
+    def native_value(self) -> int:
+        item = self._item()
+        return item.count if item else 0
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        item = self._item()
+        if item is None:
+            return {}
+        total = self.coordinator.data.total_bottles or 1
+        return {
+            "value_avg": item.value_avg,
+            "value_total": round(item.value_avg * item.count, 2),
+            "score_avg": item.score_avg,
+            "pct": round(100 * item.count / total, 2),
+        }
+
+
+class CellarSliceSensor(_Base):
+    """A long-tail dimension. State = distinct values, breakdown in `items`.
+
+    `items` is excluded from the recorder. This is not tidiness: the
+    recorder caps serialised attributes at 16384 bytes and stores an empty
+    dict for the entity's *whole* attribute set above that, so a 184-item
+    producer list would silently blank everything.
+    """
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:table"
+    _unrecorded_attributes = frozenset({"items"})
+
+    def __init__(self, coordinator, dimension: str) -> None:
+        super().__init__(coordinator)
+        self._dimension = dimension
+        self._attr_unique_id = f"{DOMAIN}_by_{dimension}"
+        self._attr_name = f"Cellar Tracker by {dimension}"
+
+    def _items(self):
+        return self.coordinator.data.tails.get(self._dimension, [])
+
+    @property
+    def native_value(self) -> int:
+        return len(self._items())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return {"items": items_payload(self._items())}
+
+
+class CellarScalarSensor(_Base):
+    """One of the four cellar-wide numbers."""
+
+    def __init__(self, coordinator, key: str, name: str, **attrs) -> None:
+        super().__init__(coordinator)
+        self._key = key
+        self._attr_unique_id = f"{DOMAIN}_{key}"
+        self._attr_name = name
+        for attr, value in attrs.items():
+            setattr(self, f"_attr_{attr}", value)
+
+    @property
+    def native_value(self):
+        return getattr(self.coordinator.data, self._key)
+
+
+# (key, display name, device_class, state_class, unit, icon).
+# CURRENCY means "substitute the cellar's currency at build time".
+# Kept module-level so tests/test_sensor_classes.py can check every
+# device_class/state_class pairing without constructing a coordinator.
+CURRENCY = object()
+
+SCALAR_SPECS = (
+    (
+        "total_bottles", "Cellar Tracker total bottles",
+        None, SensorStateClass.MEASUREMENT, "bottles", "mdi:bottle-wine",
+    ),
+    # monetary requires TOTAL: sensor/const.py maps MONETARY to {TOTAL}
+    # only, and measurement logs a warning on every install.
+    (
+        "total_value", "Cellar Tracker total value",
+        SensorDeviceClass.MONETARY, SensorStateClass.TOTAL, CURRENCY, None,
+    ),
+    # An average is not a total, so it gets no device_class at all.
+    (
+        "average_value", "Cellar Tracker average value",
+        None, SensorStateClass.MEASUREMENT, CURRENCY, "mdi:cash",
+    ),
+    (
+        "average_score", "Cellar Tracker average score",
+        None, SensorStateClass.MEASUREMENT, "points", "mdi:star",
+    ),
+)
+
+
+def _scalars(coordinator) -> list[SensorEntity]:
+    currency = coordinator.data.currency or None
+    entities: list[SensorEntity] = []
+    for key, name, device_class, state_class, unit, icon in SCALAR_SPECS:
+        attrs: dict[str, object] = {"state_class": state_class}
+        if device_class is not None:
+            attrs["device_class"] = device_class
+        resolved_unit = currency if unit is CURRENCY else unit
+        if resolved_unit is not None:
+            attrs["native_unit_of_measurement"] = resolved_unit
+        if icon is not None:
+            attrs["icon"] = icon
+        entities.append(CellarScalarSensor(coordinator, key, name, **attrs))
+    return entities
+
+
+def build_entities(coordinator) -> list[SensorEntity]:
+    """Every entity this integration provides, for the current data."""
+    entities: list[SensorEntity] = []
+    for dimension in LOW_CARDINALITY:
+        for item in coordinator.data.low.get(dimension, []):
+            entities.append(CellarValueSensor(coordinator, dimension, item.name))
+    for dimension in SLICE_DIMENSIONS:
+        entities.append(CellarSliceSensor(coordinator, dimension))
+    entities.extend(_scalars(coordinator))
+    return entities
+
+
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    """Set up from discovery only."""
     if discovery_info is None:
         return
-
-    devs = []
-
-    master_data = hass.data[DOMAIN].get_readings()
-    scan_interval = hass.data[DOMAIN].get_scan_interval()
-
-
-    for sensor_type in master_data:
-
-        data = master_data[sensor_type]
-        if isinstance(data, dict):
-            for key in data:
-
-                sensor_data = data.copy()
-                sensor_data[sensor_type] = key
-
-                devs.append(WineCellarSensor(sensor_type, key, sensor_data, scan_interval))
-        else:
-            devs.append(WineCellarSensor(sensor_type, None, data, scan_interval))
-
-    add_entities(devs, True)
-
-
-class WineCellarSensor(Entity):
-    """Representation of a sensor."""
-
-    def __init__(self, sensor_type, sub_type, data, scan_interval):
-        """Initialize the sensor."""
-
-        self._sensor_type = sensor_type
-        self._sub_type = sub_type
-        self._data = data
-        if(self._sub_type):
-            self._slug = self._sub_type.lower()
-            self._slug = re.sub(r'[^a-z0-9]+', '-', self._slug).strip('-')
-            self._slug = re.sub(r'[_]+', '-', self._slug)
-        else:
-            self._slug = None
-        self.update = Throttle(scan_interval)(self._update)
-
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        if(self._sub_type):
-            return "cellar_tracker." + self._sensor_type.lower() + "." + self._slug.lower()
-        else:
-            return "cellar_tracker." + self._sensor_type.lower()
-
-
-    @property
-    def extra_state_attributes(self):
-        if(self._sub_type):
-            return self._data
-
-        return {}
-
-    @property
-    def icon(self):
-        if(re.match(".+_value",self._sensor_type)):
-            return "mdi:currency-usd"
-
-        return "mdi:bottle-wine"
-
-    @property
-    def state(self):
-        """Return the state of the sensor."""
-        if self._state is None:
-            return 0
-
-        if(re.match(".+_value",self._sensor_type)):
-            return f"{self.hass.config.currency}{round(self._state,2)}"
-
-        return self._state
-
-    @property
-    def unique_id(self):
-        return "cellar_tracker." + self.name
-
-    @property
-    def unit_of_measurement(self):
-        """Return the unit of measurement."""
-        if(re.match(".+_value",self._sensor_type)):
-            return None
-
-        return "bottles"
-
-    def _update(self):
-        """Fetch new state data for the sensor.
-        This is the only method that should fetch new data for Home Assistant.
-        """
-        _LOGGER.debug(f"Updating data for {self.name}")
-        self.hass.data[DOMAIN].update()
-        self._data = self.hass.data[DOMAIN].get_reading(self._sensor_type)
-
-        if(self._sub_type):
-            self._data = self._data[self._sub_type]
-            self._state = self._data["count"]
-        else:
-            self._state = self._data
+    coordinator = hass.data[DOMAIN]
+    async_add_entities(build_entities(coordinator))
