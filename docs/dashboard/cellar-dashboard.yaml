@@ -1,0 +1,292 @@
+views:
+  - title: Overview
+    path: overview
+    cards:
+      - type: glance
+        entities:
+          - entity: sensor.cellar_tracker_total_bottles
+          - entity: sensor.cellar_tracker_total_value
+          - entity: sensor.cellar_tracker_average_value
+          - entity: sensor.cellar_tracker_average_score
+
+      - type: custom:mushroom-chips-card
+        chips:
+          - type: entity
+            entity: sensor.cellar_tracker_total_bottles
+            icon: mdi:bottle-wine
+          - type: entity
+            entity: sensor.cellar_tracker_total_value
+            icon: mdi:cash
+          - type: entity
+            entity: sensor.cellar_tracker_average_score
+            icon: mdi:star
+          - type: entity
+            entity: sensor.cellar_tracker_by_producer
+            icon: mdi:account-group
+
+      - type: statistics-graph
+        title: Cellar value
+        entities:
+          - sensor.cellar_tracker_total_value
+        stat_types:
+          - state
+        days_to_show: 365
+        period: day
+
+  - title: Explore
+    path: explore
+    cards:
+      - type: custom:flex-table-card
+        title: By producer
+        entities:
+          include: sensor.cellar_tracker_by_producer
+        max_rows: 50
+        sort_by: count-
+        columns:
+          - name: Producer
+            id: name
+            data: items.name
+          - name: Bottles
+            id: count
+            data: items.count
+          - name: Avg value
+            id: value_avg
+            data: items.value_avg
+            modify: parseFloat(x).toFixed(0)
+          - name: Avg score
+            id: score_avg
+            data: items.score_avg
+            modify: "x === null ? '-' : parseFloat(x).toFixed(1)"
+
+      - type: custom:flex-table-card
+        title: By appellation
+        entities:
+          include: sensor.cellar_tracker_by_appellation
+        max_rows: 50
+        sort_by: count-
+        columns:
+          - name: Appellation
+            id: name
+            data: items.name
+          - name: Bottles
+            id: count
+            data: items.count
+          - name: Avg value
+            id: value_avg
+            data: items.value_avg
+            modify: parseFloat(x).toFixed(0)
+          - name: Avg score
+            id: score_avg
+            data: items.score_avg
+            modify: "x === null ? '-' : parseFloat(x).toFixed(1)"
+
+      - type: custom:flex-table-card
+        title: By varietal
+        entities:
+          include: sensor.cellar_tracker_by_varietal
+        sort_by: count-
+        columns:
+          - name: Varietal
+            id: name
+            data: items.name
+          - name: Bottles
+            id: count
+            data: items.count
+          - name: Avg value
+            id: value_avg
+            data: items.value_avg
+            modify: parseFloat(x).toFixed(0)
+          - name: Avg score
+            id: score_avg
+            data: items.score_avg
+            modify: "x === null ? '-' : parseFloat(x).toFixed(1)"
+
+      - type: custom:flex-table-card
+        title: By master varietal
+        entities:
+          include: sensor.cellar_tracker_by_mastervarietal
+        sort_by: count-
+        columns:
+          - name: Master varietal
+            id: name
+            data: items.name
+          - name: Bottles
+            id: count
+            data: items.count
+          - name: Avg value
+            id: value_avg
+            data: items.value_avg
+            modify: parseFloat(x).toFixed(0)
+          - name: Avg score
+            id: score_avg
+            data: items.score_avg
+            modify: "x === null ? '-' : parseFloat(x).toFixed(1)"
+
+      - type: custom:flex-table-card
+        title: By vintage
+        entities:
+          include: sensor.cellar_tracker_by_vintage
+        sort_by: count-
+        columns:
+          - name: Vintage
+            id: name
+            data: items.name
+          - name: Bottles
+            id: count
+            data: items.count
+          - name: Avg value
+            id: value_avg
+            data: items.value_avg
+            modify: parseFloat(x).toFixed(0)
+          - name: Avg score
+            id: score_avg
+            data: items.score_avg
+            modify: "x === null ? '-' : parseFloat(x).toFixed(1)"
+
+      - type: custom:flex-table-card
+        title: By region
+        entities:
+          include: sensor.cellar_tracker_by_region
+        sort_by: count-
+        columns:
+          - name: Region
+            id: name
+            data: items.name
+          - name: Bottles
+            id: count
+            data: items.count
+          - name: Avg value
+            id: value_avg
+            data: items.value_avg
+            modify: parseFloat(x).toFixed(0)
+          - name: Avg score
+            id: score_avg
+            data: items.score_avg
+            modify: "x === null ? '-' : parseFloat(x).toFixed(1)"
+
+      - type: custom:flex-table-card
+        title: By sub-region
+        entities:
+          include: sensor.cellar_tracker_by_subregion
+        sort_by: count-
+        columns:
+          - name: Sub-region
+            id: name
+            data: items.name
+          - name: Bottles
+            id: count
+            data: items.count
+          - name: Avg value
+            id: value_avg
+            data: items.value_avg
+            modify: parseFloat(x).toFixed(0)
+          - name: Avg score
+            id: score_avg
+            data: items.score_avg
+            modify: "x === null ? '-' : parseFloat(x).toFixed(1)"
+
+      - type: custom:flex-table-card
+        title: By place of purchase
+        entities:
+          include: sensor.cellar_tracker_by_store
+        max_rows: 50
+        sort_by: count-
+        columns:
+          - name: Place of purchase
+            id: name
+            data: items.name
+          - name: Bottles
+            id: count
+            data: items.count
+          - name: Avg value
+            id: value_avg
+            data: items.value_avg
+            modify: parseFloat(x).toFixed(0)
+          - name: Avg score
+            id: score_avg
+            data: items.score_avg
+            modify: "x === null ? '-' : parseFloat(x).toFixed(1)"
+
+      - type: custom:flex-table-card
+        title: By score band
+        entities:
+          include: sensor.cellar_tracker_by_score_band
+        sort_by: name+
+        columns:
+          - name: Score band
+            id: name
+            data: items.name
+          - name: Bottles
+            id: count
+            data: items.count
+          - name: Avg value
+            id: value_avg
+            data: items.value_avg
+            modify: parseFloat(x).toFixed(0)
+          - name: Avg score
+            id: score_avg
+            data: items.score_avg
+            modify: "x === null ? '-' : parseFloat(x).toFixed(1)"
+
+  - title: Cellar
+    path: cellar
+    cards:
+      - type: custom:flex-table-card
+        title: By colour
+        entities:
+          include: sensor.cellar_tracker_color_*
+        sort_by: state-
+        columns:
+          - name: Colour
+            data: friendly_name
+            modify: x.replace('Cellar Tracker color ','')
+          - name: Bottles
+            data: state
+          - name: Avg value
+            data: value_avg
+            modify: parseFloat(x).toFixed(0)
+
+      - type: custom:flex-table-card
+        title: By type
+        entities:
+          include: sensor.cellar_tracker_type_*
+        sort_by: state-
+        columns:
+          - name: Type
+            data: friendly_name
+            modify: x.replace('Cellar Tracker type ','')
+          - name: Bottles
+            data: state
+          - name: Avg value
+            data: value_avg
+            modify: parseFloat(x).toFixed(0)
+
+      - type: custom:flex-table-card
+        title: By country
+        entities:
+          include: sensor.cellar_tracker_country_*
+        sort_by: state-
+        columns:
+          - name: Country
+            data: friendly_name
+            modify: x.replace('Cellar Tracker country ','')
+          - name: Bottles
+            data: state
+          - name: Avg value
+            data: value_avg
+            modify: parseFloat(x).toFixed(0)
+          - name: Avg score
+            data: score_avg
+            modify: parseFloat(x).toFixed(1)
+
+      - type: custom:flex-table-card
+        title: By location
+        entities:
+          include: sensor.cellar_tracker_location_*
+        sort_by: state-
+        columns:
+          - name: Location
+            data: friendly_name
+            modify: x.replace('Cellar Tracker location ','')
+          - name: Bottles
+            data: state
