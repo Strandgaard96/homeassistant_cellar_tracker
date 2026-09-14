@@ -4,6 +4,11 @@
   "documentation": "https://github.com/ahoernecke/ha_cellar_tracker",
   "dependencies": [],
   "version": "20210413",
-  "codeowners": ["@ahoernecke"],
-  "requirements": ["cellartracker"]
+  "codeowners": [
+    "@ahoernecke"
+  ],
+  "requirements": [
+    "cellartracker",
+    "pandas"
+  ]
 }

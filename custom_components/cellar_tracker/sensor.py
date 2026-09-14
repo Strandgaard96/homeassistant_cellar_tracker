@@ -1,11 +1,10 @@
 """Platform for sensor integration."""
+import logging
+import re
+
 from homeassistant.helpers.entity import Entity
 from homeassistant.util import Throttle
-from datetime import timedelta
-import logging
-import time
-import pandas as pd
-import re
+
 from . import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,13 +21,12 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     scan_interval = hass.data[DOMAIN].get_scan_interval()
 
 
-    for sensor_type in master_data.keys():
+    for sensor_type in master_data:
 
         data = master_data[sensor_type]
-        if(type(data) == dict):
-            for key in data.keys():
+        if isinstance(data, dict):
+            for key in data:
 
-                value = data[key]
                 sensor_data = data.copy()
                 sensor_data[sensor_type] = key
 
@@ -54,7 +52,6 @@ class WineCellarSensor(Entity):
             self._slug = re.sub(r'[_]+', '-', self._slug)
         else:
             self._slug = None
-        # self.update()
         self.update = Throttle(scan_interval)(self._update)
 
     @property
@@ -83,7 +80,7 @@ class WineCellarSensor(Entity):
     @property
     def state(self):
         """Return the state of the sensor."""
-        if(self._state == None):
+        if self._state is None:
             return 0
 
         if(re.match(".+_value",self._sensor_type)):

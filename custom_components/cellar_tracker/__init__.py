@@ -1,17 +1,14 @@
-from cellartracker import cellartracker
-import pandas as pd
-import numpy as np
 import logging
-
-from random import seed
-from random import randint
 from datetime import timedelta
+from typing import Any
 
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, CONF_SCAN_INTERVAL
-import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
-from homeassistant.util import Throttle
+import pandas as pd
+import voluptuous as vol
+from cellartracker import cellartracker
+from homeassistant.const import CONF_PASSWORD, CONF_SCAN_INTERVAL, CONF_USERNAME
 from homeassistant.helpers import discovery as hdisco
+from homeassistant.util import Throttle
 
 """Example Load Platform integration."""
 DOMAIN = 'cellar_tracker'
@@ -42,7 +39,7 @@ def setup(hass, config):
    # Enforce a low limit of 30
    scan_interval_seconds = conf[CONF_SCAN_INTERVAL]
    if scan_interval_seconds < 30:
-     _LOGGER.debug("Overriding scan interval to 30 due to low value of {scan_interval_seconds}")
+     _LOGGER.debug(f"Overriding scan interval to 30 due to low value of {scan_interval_seconds}")
      scan_interval_seconds = 30
    else:
      _LOGGER.debug(f"Using configured scan_interval of {scan_interval_seconds}")
@@ -78,7 +75,9 @@ class WineCellarData:
 
     def _update(self, **kwargs):
       _LOGGER.debug("Updating cellar tracker data")
-      data = {}
+      # Deliberately heterogeneous: group keys map to dicts, the three
+      # totals map to scalars. sensor.py branches on isinstance(v, dict).
+      data: dict[str, Any] = {}
       username = self._username
       password = self._password
 
@@ -87,13 +86,17 @@ class WineCellarData:
       df = pd.DataFrame(inventory)
       df[["Price","Valuation"]] = df[["Price","Valuation"]].apply(pd.to_numeric)
 
-      groups = ['Varietal', 'Country', 'Vintage', 'Producer', 'Type', 'Location', 'Appellation', 'StoreName']
+      # Each group becomes one sensor per distinct value; see CLAUDE.md.
+      groups = [
+        'Varietal', 'Country', 'Vintage', 'Producer',
+        'Type', 'Location', 'Appellation', 'StoreName',
+      ]
 
       for group in groups:
         group_data = df.groupby(group).agg({'iWine':'count','Valuation':['sum','mean']})
         group_data.columns = group_data.columns.droplevel(0)
         group_data["%"] = 1
-        group_data["%"] = (group_data['count']/group_data['count'].sum() ) * 100
+        group_data["%"] = (group_data['count'] / group_data['count'].sum()) * 100
         group_data.columns = ["count", "value_total", "value_avg", "%"]
         data[group] = {}
         for row, item in group_data.iterrows():
