@@ -1,0 +1,32 @@
+# Dev tooling only. This repo ships as a Home Assistant custom integration
+# (see hacs.json); nothing here is installed onto a user's HA instance.
+
+[tool.ruff]
+# Home Assistant 2025.x runs on Python 3.13.
+target-version = "py313"
+line-length = 100
+src = ["custom_components"]
+
+[tool.ruff.lint]
+select = [
+    "F",   # pyflakes
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "I",   # import sorting
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ty.environment]
+python-version = "3.13"
+root = ["custom_components"]
+
+[tool.ty.rules]
+# homeassistant, pandas and cellartracker are provided by the HA runtime and
+# are not installed in this repo, so their imports cannot be resolved locally.
+unresolved-import = "ignore"
