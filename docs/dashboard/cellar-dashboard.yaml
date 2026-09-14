@@ -1,211 +1,432 @@
 views:
-  - title: Overview
-    path: overview
+- title: Cellar
+  path: cellar
+  type: sections
+  max_columns: 3
+  sections:
+  - type: grid
+    column_span: 3
     cards:
-      - type: glance
-        entities:
-          - entity: sensor.cellar_tracker_total_bottles
-          - entity: sensor.cellar_tracker_total_value
-          - entity: sensor.cellar_tracker_average_value
-          - entity: sensor.cellar_tracker_average_score
+    - type: heading
+      heading: Cellar at a glance
+      heading_style: title
+      icon: mdi:bottle-wine
+    - type: custom:mushroom-template-card
+      primary: '{{ states(''sensor.cellar_tracker_total_bottles'') }} bottles'
+      secondary: '{{ states(''sensor.cellar_tracker_by_producer'') }} producers · {{ states(''sensor.cellar_tracker_by_region'') }} regions'
+      icon: mdi:bottle-wine
+      icon_color: red
+      entity: sensor.cellar_tracker_total_bottles
+      tap_action:
+        action: more-info
+      card_mod:
+        style: 'ha-card { --mush-icon-size: 46px; }
 
-      - type: statistics-graph
-        title: Cellar value
-        entities:
-          - sensor.cellar_tracker_total_value
-        stat_types:
-          - state
-        days_to_show: 365
-        period: day
+          '
+    - type: custom:mushroom-template-card
+      primary: '{{ (states(''sensor.cellar_tracker_total_value'') | float(0) / 1000) | round(0) }}k DKK'
+      secondary: '{{ states(''sensor.cellar_tracker_average_value'') | float(0) | round(0) }} DKK per bottle'
+      icon: mdi:cash-multiple
+      icon_color: green
+      entity: sensor.cellar_tracker_total_value
+      tap_action:
+        action: more-info
+      card_mod:
+        style: 'ha-card { --mush-icon-size: 46px; }
 
-  - title: Explore
-    path: explore
+          '
+    - type: custom:mushroom-template-card
+      primary: CT {{ states('sensor.cellar_tracker_average_score') }}
+      secondary: average community score
+      icon: mdi:star
+      icon_color: amber
+      entity: sensor.cellar_tracker_average_score
+      tap_action:
+        action: more-info
+      card_mod:
+        style: 'ha-card { --mush-icon-size: 46px; }
+
+          '
+  - type: grid
     cards:
-      - type: markdown
-        title: By producer
-        content: |
-          | Producer | Bottles | Avg value | Avg score |
-          |---|--:|--:|--:|
-          {%- set items = state_attr('sensor.cellar_tracker_by_producer','items') or [] %}
-          {%- for i in items[:25] %}
-          | {{ i.name }} | {{ i.count }} | {{ i.value_avg | round(0) | int }} | {{ i.score_avg if i.score_avg else '-' }} |
-          {%- endfor %}
-
-          _showing {{ items[:25] | length }} of {{ states('sensor.cellar_tracker_by_producer') }}_
-
-      - type: markdown
-        title: By appellation
-        content: |
-          | Appellation | Bottles | Avg value | Avg score |
-          |---|--:|--:|--:|
-          {%- set items = state_attr('sensor.cellar_tracker_by_appellation','items') or [] %}
-          {%- for i in items[:25] %}
-          | {{ i.name }} | {{ i.count }} | {{ i.value_avg | round(0) | int }} | {{ i.score_avg if i.score_avg else '-' }} |
-          {%- endfor %}
-
-          _showing {{ items[:25] | length }} of {{ states('sensor.cellar_tracker_by_appellation') }}_
-
-      - type: markdown
-        title: By varietal
-        content: |
-          | Varietal | Bottles | Avg value | Avg score |
-          |---|--:|--:|--:|
-          {%- set items = state_attr('sensor.cellar_tracker_by_varietal','items') or [] %}
-          {%- for i in items[:20] %}
-          | {{ i.name }} | {{ i.count }} | {{ i.value_avg | round(0) | int }} | {{ i.score_avg if i.score_avg else '-' }} |
-          {%- endfor %}
-
-          _showing {{ items[:20] | length }} of {{ states('sensor.cellar_tracker_by_varietal') }}_
-
-      - type: markdown
-        title: By master varietal
-        content: |
-          | Master varietal | Bottles | Avg value | Avg score |
-          |---|--:|--:|--:|
-          {%- set items = state_attr('sensor.cellar_tracker_by_mastervarietal','items') or [] %}
-          {%- for i in items[:20] %}
-          | {{ i.name }} | {{ i.count }} | {{ i.value_avg | round(0) | int }} | {{ i.score_avg if i.score_avg else '-' }} |
-          {%- endfor %}
-
-          _showing {{ items[:20] | length }} of {{ states('sensor.cellar_tracker_by_mastervarietal') }}_
-
-      - type: markdown
-        title: By vintage
-        content: |
-          | Vintage | Bottles | Avg value | Avg score |
-          |---|--:|--:|--:|
-          {%- set items = state_attr('sensor.cellar_tracker_by_vintage','items') or [] %}
-          {%- for i in items[:20] %}
-          | {{ i.name }} | {{ i.count }} | {{ i.value_avg | round(0) | int }} | {{ i.score_avg if i.score_avg else '-' }} |
-          {%- endfor %}
-
-          _showing {{ items[:20] | length }} of {{ states('sensor.cellar_tracker_by_vintage') }}_
-
-      - type: markdown
-        title: By region
-        content: |
-          | Region | Bottles | Avg value | Avg score |
-          |---|--:|--:|--:|
-          {%- set items = state_attr('sensor.cellar_tracker_by_region','items') or [] %}
-          {%- for i in items[:25] %}
-          | {{ i.name }} | {{ i.count }} | {{ i.value_avg | round(0) | int }} | {{ i.score_avg if i.score_avg else '-' }} |
-          {%- endfor %}
-
-          _showing {{ items[:25] | length }} of {{ states('sensor.cellar_tracker_by_region') }}_
-
-      - type: markdown
-        title: By sub-region
-        content: |
-          | Sub-region | Bottles | Avg value | Avg score |
-          |---|--:|--:|--:|
-          {%- set items = state_attr('sensor.cellar_tracker_by_subregion','items') or [] %}
-          {%- for i in items[:25] %}
-          | {{ i.name }} | {{ i.count }} | {{ i.value_avg | round(0) | int }} | {{ i.score_avg if i.score_avg else '-' }} |
-          {%- endfor %}
-
-          _showing {{ items[:25] | length }} of {{ states('sensor.cellar_tracker_by_subregion') }}_
-
-      - type: markdown
-        title: By place of purchase
-        content: |
-          | Place of purchase | Bottles | Avg value | Avg score |
-          |---|--:|--:|--:|
-          {%- set items = state_attr('sensor.cellar_tracker_by_store','items') or [] %}
-          {%- for i in items[:20] %}
-          | {{ i.name }} | {{ i.count }} | {{ i.value_avg | round(0) | int }} | {{ i.score_avg if i.score_avg else '-' }} |
-          {%- endfor %}
-
-          _showing {{ items[:20] | length }} of {{ states('sensor.cellar_tracker_by_store') }}_
-
-      - type: markdown
-        title: By score band
-        content: |
-          | Score band | Bottles | Avg value | Avg score |
-          |---|--:|--:|--:|
-          {%- set items = state_attr('sensor.cellar_tracker_by_score_band','items') or [] %}
-          {%- for i in items[:10] %}
-          | {{ i.name }} | {{ i.count }} | {{ i.value_avg | round(0) | int }} | {{ i.score_avg if i.score_avg else '-' }} |
-          {%- endfor %}
-
-          _showing {{ items[:10] | length }} of {{ states('sensor.cellar_tracker_by_score_band') }}_
-
-  - title: Cellar
-    path: cellar
-    cards:
-      - type: markdown
-        title: By country
-        content: |
-          | Country | Bottles | Avg value |
-          |---|--:|--:|
-          {%- set ns = namespace(rows=[]) %}
-          {%- for s in states.sensor if s.entity_id.startswith('sensor.cellar_tracker_country_') %}
-          {%- set ns.rows = ns.rows + [(s.name | replace('Cellar Tracker country ',''), s.state | int(0), s.attributes.value_avg | default(0))] %}
-          {%- endfor %}
-          {%- for r in ns.rows | sort(attribute='1', reverse=true) %}
-          | {{ r[0] }} | {{ r[1] }} | {{ r[2] | round(0) | int }} |
-          {%- endfor %}
-
-      - type: markdown
-        title: By type
-        content: |
-          | Type | Bottles | Avg value |
-          |---|--:|--:|
-          {%- set ns = namespace(rows=[]) %}
-          {%- for s in states.sensor if s.entity_id.startswith('sensor.cellar_tracker_type_') %}
-          {%- set ns.rows = ns.rows + [(s.name | replace('Cellar Tracker type ',''), s.state | int(0), s.attributes.value_avg | default(0))] %}
-          {%- endfor %}
-          {%- for r in ns.rows | sort(attribute='1', reverse=true) %}
-          | {{ r[0] }} | {{ r[1] }} | {{ r[2] | round(0) | int }} |
-          {%- endfor %}
-
-      - type: markdown
+    - type: heading
+      heading: Composition
+      heading_style: title
+    - type: custom:apexcharts-card
+      chart_type: donut
+      header:
+        show: true
         title: By colour
-        content: |
-          | Colour | Bottles | Avg value |
-          |---|--:|--:|
-          {%- set ns = namespace(rows=[]) %}
-          {%- for s in states.sensor if s.entity_id.startswith('sensor.cellar_tracker_color_') %}
-          {%- set ns.rows = ns.rows + [(s.name | replace('Cellar Tracker color ',''), s.state | int(0), s.attributes.value_avg | default(0))] %}
-          {%- endfor %}
-          {%- for r in ns.rows | sort(attribute='1', reverse=true) %}
-          | {{ r[0] }} | {{ r[1] }} | {{ r[2] | round(0) | int }} |
-          {%- endfor %}
-
-      - type: markdown
+        show_states: false
+      series:
+      - entity: sensor.cellar_tracker_color_red
+        name: Red
+      - entity: sensor.cellar_tracker_color_white
+        name: White
+      - entity: sensor.cellar_tracker_color_ros
+        name: Rosé
+      apex_config:
+        colors:
+        - '#7b2d3b'
+        - '#e8d9a0'
+        - '#e5a0ae'
+        legend:
+          position: bottom
+        dataLabels:
+          enabled: true
+    - type: custom:apexcharts-card
+      chart_type: donut
+      header:
+        show: true
         title: By category
-        content: |
-          | Category | Bottles | Avg value |
-          |---|--:|--:|
-          {%- set ns = namespace(rows=[]) %}
-          {%- for s in states.sensor if s.entity_id.startswith('sensor.cellar_tracker_category_') %}
-          {%- set ns.rows = ns.rows + [(s.name | replace('Cellar Tracker category ',''), s.state | int(0), s.attributes.value_avg | default(0))] %}
-          {%- endfor %}
-          {%- for r in ns.rows | sort(attribute='1', reverse=true) %}
-          | {{ r[0] }} | {{ r[1] }} | {{ r[2] | round(0) | int }} |
-          {%- endfor %}
-
-      - type: markdown
+        show_states: false
+      series:
+      - entity: sensor.cellar_tracker_category_dry
+        name: Dry
+      - entity: sensor.cellar_tracker_category_sparkling
+        name: Sparkling
+      - entity: sensor.cellar_tracker_category_fortified
+        name: Fortified
+      - entity: sensor.cellar_tracker_category_sweet_dessert
+        name: Sweet/Dessert
+      apex_config:
+        colors:
+        - '#7b2d3b'
+        - '#c9a227'
+        - '#4a6741'
+        - '#8c5a3c'
+        legend:
+          position: bottom
+        dataLabels:
+          enabled: true
+  - type: grid
+    cards:
+    - type: heading
+      heading: Origin
+      heading_style: title
+    - type: custom:apexcharts-card
+      chart_type: donut
+      header:
+        show: true
+        title: By country
+        show_states: false
+      series:
+      - entity: sensor.cellar_tracker_country_france
+        name: France
+      - entity: sensor.cellar_tracker_country_italy
+        name: Italy
+      - entity: sensor.cellar_tracker_country_germany
+        name: Germany
+      - entity: sensor.cellar_tracker_country_spain
+        name: Spain
+      - entity: sensor.cellar_tracker_country_portugal
+        name: Portugal
+      - entity: sensor.cellar_tracker_country_united_kingdom
+        name: United Kingdom
+      - entity: sensor.cellar_tracker_country_usa
+        name: USA
+      - entity: sensor.cellar_tracker_country_south_africa
+        name: South Africa
+      apex_config:
+        colors:
+        - '#7b2d3b'
+        - '#c9a227'
+        - '#4a6741'
+        - '#8c5a3c'
+        - '#5b7c99'
+        - '#a0522d'
+        - '#6b4e71'
+        - '#b5651d'
+        legend:
+          position: bottom
+        dataLabels:
+          enabled: true
+    - type: custom:apexcharts-card
+      chart_type: donut
+      header:
+        show: true
         title: By bottle size
-        content: |
-          | Bottle size | Bottles | Avg value |
-          |---|--:|--:|
-          {%- set ns = namespace(rows=[]) %}
-          {%- for s in states.sensor if s.entity_id.startswith('sensor.cellar_tracker_size_') %}
-          {%- set ns.rows = ns.rows + [(s.name | replace('Cellar Tracker size ',''), s.state | int(0), s.attributes.value_avg | default(0))] %}
-          {%- endfor %}
-          {%- for r in ns.rows | sort(attribute='1', reverse=true) %}
-          | {{ r[0] }} | {{ r[1] }} | {{ r[2] | round(0) | int }} |
-          {%- endfor %}
-
-      - type: markdown
-        title: By location
-        content: |
-          | Location | Bottles | Avg value |
-          |---|--:|--:|
-          {%- set ns = namespace(rows=[]) %}
-          {%- for s in states.sensor if s.entity_id.startswith('sensor.cellar_tracker_location_') %}
-          {%- set ns.rows = ns.rows + [(s.name | replace('Cellar Tracker location ',''), s.state | int(0), s.attributes.value_avg | default(0))] %}
-          {%- endfor %}
-          {%- for r in ns.rows | sort(attribute='1', reverse=true) %}
-          | {{ r[0] }} | {{ r[1] }} | {{ r[2] | round(0) | int }} |
-          {%- endfor %}
+        show_states: false
+      series:
+      - entity: sensor.cellar_tracker_size_750ml
+        name: 750ml
+      - entity: sensor.cellar_tracker_size_1_5l
+        name: 1.5L
+      - entity: sensor.cellar_tracker_size_375ml
+        name: 375ml
+      - entity: sensor.cellar_tracker_size_620ml
+        name: 620ml
+      - entity: sensor.cellar_tracker_size_350ml
+        name: 350ml
+      apex_config:
+        colors:
+        - '#7b2d3b'
+        - '#c9a227'
+        - '#4a6741'
+        - '#8c5a3c'
+        - '#5b7c99'
+        legend:
+          position: bottom
+        dataLabels:
+          enabled: true
+  - type: grid
+    cards:
+    - type: heading
+      heading: Quality & value
+      heading_style: title
+    - type: custom:apexcharts-card
+      chart_type: donut
+      header:
+        show: true
+        title: By type
+        show_states: false
+      series:
+      - entity: sensor.cellar_tracker_type_red
+        name: Red
+      - entity: sensor.cellar_tracker_type_white
+        name: White
+      - entity: sensor.cellar_tracker_type_white_sparkling
+        name: White - Sparkling
+      - entity: sensor.cellar_tracker_type_red_fortified
+        name: Red - Fortified
+      - entity: sensor.cellar_tracker_type_white_off_dry
+        name: White - Off-dry
+      - entity: sensor.cellar_tracker_type_ros_sparkling
+        name: Rosé - Sparkling
+      apex_config:
+        colors:
+        - '#7b2d3b'
+        - '#c9a227'
+        - '#4a6741'
+        - '#8c5a3c'
+        - '#5b7c99'
+        - '#a0522d'
+        legend:
+          position: bottom
+        dataLabels:
+          enabled: true
+    - type: statistics-graph
+      title: Cellar value
+      entities:
+      - sensor.cellar_tracker_total_value
+      stat_types:
+      - state
+      days_to_show: 365
+      period: day
+- title: Explore
+  path: explore
+  type: sections
+  max_columns: 2
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Who made it
+      heading_style: title
+    - type: custom:flex-table-card
+      title: Producer
+      entities:
+        include: sensor.cellar_tracker_by_producer
+      max_rows: 30
+      sort_by: count-
+      css:
+        tbody tr:nth-child(odd): 'background-color: var(--table-row-alternative-background-color);'
+        tbody tr: 'height: 30px;'
+      columns:
+      - name: Producer
+        id: name
+        data: items.name
+      - name: Btl
+        id: count
+        data: items.count
+      - name: Avg
+        id: value_avg
+        data: items.value_avg
+        modify: parseFloat(x).toFixed(0)
+      - name: CT
+        id: score_avg
+        data: items.score_avg
+        modify: 'x === null ? ''–'' : parseFloat(x).toFixed(1)'
+    - type: custom:flex-table-card
+      title: Appellation
+      entities:
+        include: sensor.cellar_tracker_by_appellation
+      max_rows: 25
+      sort_by: count-
+      css:
+        tbody tr:nth-child(odd): 'background-color: var(--table-row-alternative-background-color);'
+        tbody tr: 'height: 30px;'
+      columns:
+      - name: Appellation
+        id: name
+        data: items.name
+      - name: Btl
+        id: count
+        data: items.count
+      - name: Avg
+        id: value_avg
+        data: items.value_avg
+        modify: parseFloat(x).toFixed(0)
+      - name: CT
+        id: score_avg
+        data: items.score_avg
+        modify: 'x === null ? ''–'' : parseFloat(x).toFixed(1)'
+  - type: grid
+    cards:
+    - type: heading
+      heading: Where it's from
+      heading_style: title
+    - type: custom:flex-table-card
+      title: Region
+      entities:
+        include: sensor.cellar_tracker_by_region
+      max_rows: 25
+      sort_by: count-
+      css:
+        tbody tr:nth-child(odd): 'background-color: var(--table-row-alternative-background-color);'
+        tbody tr: 'height: 30px;'
+      columns:
+      - name: Region
+        id: name
+        data: items.name
+      - name: Btl
+        id: count
+        data: items.count
+      - name: Avg
+        id: value_avg
+        data: items.value_avg
+        modify: parseFloat(x).toFixed(0)
+      - name: CT
+        id: score_avg
+        data: items.score_avg
+        modify: 'x === null ? ''–'' : parseFloat(x).toFixed(1)'
+    - type: custom:flex-table-card
+      title: Sub-region
+      entities:
+        include: sensor.cellar_tracker_by_subregion
+      max_rows: 25
+      sort_by: count-
+      css:
+        tbody tr:nth-child(odd): 'background-color: var(--table-row-alternative-background-color);'
+        tbody tr: 'height: 30px;'
+      columns:
+      - name: Sub-region
+        id: name
+        data: items.name
+      - name: Btl
+        id: count
+        data: items.count
+      - name: Avg
+        id: value_avg
+        data: items.value_avg
+        modify: parseFloat(x).toFixed(0)
+      - name: CT
+        id: score_avg
+        data: items.score_avg
+        modify: 'x === null ? ''–'' : parseFloat(x).toFixed(1)'
+  - type: grid
+    cards:
+    - type: heading
+      heading: What it is
+      heading_style: title
+    - type: custom:flex-table-card
+      title: Varietal
+      entities:
+        include: sensor.cellar_tracker_by_varietal
+      max_rows: 25
+      sort_by: count-
+      css:
+        tbody tr:nth-child(odd): 'background-color: var(--table-row-alternative-background-color);'
+        tbody tr: 'height: 30px;'
+      columns:
+      - name: Varietal
+        id: name
+        data: items.name
+      - name: Btl
+        id: count
+        data: items.count
+      - name: Avg
+        id: value_avg
+        data: items.value_avg
+        modify: parseFloat(x).toFixed(0)
+      - name: CT
+        id: score_avg
+        data: items.score_avg
+        modify: 'x === null ? ''–'' : parseFloat(x).toFixed(1)'
+    - type: custom:flex-table-card
+      title: Vintage
+      entities:
+        include: sensor.cellar_tracker_by_vintage
+      max_rows: 25
+      sort_by: count-
+      css:
+        tbody tr:nth-child(odd): 'background-color: var(--table-row-alternative-background-color);'
+        tbody tr: 'height: 30px;'
+      columns:
+      - name: Vintage
+        id: name
+        data: items.name
+      - name: Btl
+        id: count
+        data: items.count
+      - name: Avg
+        id: value_avg
+        data: items.value_avg
+        modify: parseFloat(x).toFixed(0)
+      - name: CT
+        id: score_avg
+        data: items.score_avg
+        modify: 'x === null ? ''–'' : parseFloat(x).toFixed(1)'
+  - type: grid
+    cards:
+    - type: heading
+      heading: Quality & source
+      heading_style: title
+    - type: custom:flex-table-card
+      title: Score band
+      entities:
+        include: sensor.cellar_tracker_by_score_band
+      max_rows: 10
+      sort_by: count-
+      css:
+        tbody tr:nth-child(odd): 'background-color: var(--table-row-alternative-background-color);'
+        tbody tr: 'height: 30px;'
+      columns:
+      - name: Score band
+        id: name
+        data: items.name
+      - name: Btl
+        id: count
+        data: items.count
+      - name: Avg
+        id: value_avg
+        data: items.value_avg
+        modify: parseFloat(x).toFixed(0)
+      - name: CT
+        id: score_avg
+        data: items.score_avg
+        modify: 'x === null ? ''–'' : parseFloat(x).toFixed(1)'
+    - type: custom:flex-table-card
+      title: Place of purchase
+      entities:
+        include: sensor.cellar_tracker_by_store
+      max_rows: 25
+      sort_by: count-
+      css:
+        tbody tr:nth-child(odd): 'background-color: var(--table-row-alternative-background-color);'
+        tbody tr: 'height: 30px;'
+      columns:
+      - name: Place of purchase
+        id: name
+        data: items.name
+      - name: Btl
+        id: count
+        data: items.count
+      - name: Avg
+        id: value_avg
+        data: items.value_avg
+        modify: parseFloat(x).toFixed(0)
+      - name: CT
+        id: score_avg
+        data: items.score_avg
+        modify: 'x === null ? ''–'' : parseFloat(x).toFixed(1)'
