@@ -28,20 +28,38 @@ def slugify(value: str) -> str:
 
 
 def unique_slugs(values: list[str]) -> dict[str, str]:
-    """Map each value to a slug, suffixing duplicates so none collide.
+    """Map each value to a slug, disambiguating duplicates so none collide.
 
-    Two distinct values can slugify identically (Cotes du Rhone and Cotes
-    du Rhone with accents). A duplicate unique_id means Home Assistant
-    silently drops the second entity. Sorting first makes the assignment
-    stable regardless of the order CellarTracker returns rows in.
+    Two distinct values can slugify identically (punctuation collapses:
+    "Domaine-Leroy" and "Domaine Leroy" both give "domaine_leroy"). A
+    duplicate unique_id makes Home Assistant silently drop the second entity.
+
+    A generated suffix must also not collide with some OTHER value's natural
+    slug: given "Wine Room", "Wine-Room" and a real location literally named
+    "Wine Room 2", a naive counter hands "wine_room_2" to two different
+    values. Hence the `natural` check below.
+
+    Sorting makes the assignment independent of the order CellarTracker
+    returns rows in. Adding an unrelated value never moves an existing slug.
+
+    Known limitation, accepted: when a collision appears for the FIRST time,
+    the incumbent that previously held the bare slug moves to a suffixed one,
+    so its unique_id changes once and the registry cleanup removes the stale
+    entry. Unavoidable without suffixing every entity unconditionally, which
+    would make all 47 ids unreadable.
     """
+    bases = {value: slugify(value) for value in values}
+    natural = set(bases.values())
     assigned: dict[str, str] = {}
-    seen: dict[str, int] = {}
+    used: set[str] = set()
     for value in sorted(values):
-        base = slugify(value)
-        count = seen.get(base, 0)
-        seen[base] = count + 1
-        assigned[value] = base if count == 0 else f"{base}_{count + 1}"
+        base = bases[value]
+        candidate, suffix = base, 1
+        while candidate in used or (suffix > 1 and candidate in natural):
+            suffix += 1
+            candidate = f"{base}_{suffix}"
+        assigned[value] = candidate
+        used.add(candidate)
     return assigned
 
 

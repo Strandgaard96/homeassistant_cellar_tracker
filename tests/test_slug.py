@@ -18,6 +18,9 @@ def test_colliding_names_get_distinct_slugs():
     assert set(slugs.values()) == {"domaine_leroy", "domaine_leroy_2"}
     # Two unsluggable names must still get distinct, well-formed ids.
     assert set(unique_slugs(["---", "###"]).values()) == {UNNAMED, f"{UNNAMED}_2"}
+    # A generated suffix must not collide with another value's natural slug.
+    three = unique_slugs(["Wine Room", "Wine-Room", "Wine Room 2"])
+    assert len(set(three.values())) == 3, three
 
 
 def test_accented_names_do_not_collide():
