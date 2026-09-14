@@ -21,7 +21,7 @@ This is an unofficial integration of Cellar Tracker for Home Assistant, the deve
 - HACS: Home Assistant Community Store - https://hacs.xyz/
 - [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom) - Available in HACS
 - [Flex Table Card](https://github.com/custom-cards/flex-table-card/) - Available in HACS
-- [card-mod](https://github.com/thomasloven/lovelace-card-mod) - Available in HACS
+- **(Optional)** [card-mod](https://github.com/thomasloven/lovelace-card-mod) - Available in HACS - not required by either dashboard YAML below, but handy for further styling
 - **(Optional)** secrets.yaml - https://www.home-assistant.io/docs/configuration/secrets/
 
 # Installation
@@ -47,8 +47,10 @@ Then go to `configuration.yaml` and add:
 cellar_tracker:
   username:  !secret cellar_tracker_username
   password:  !secret cellar_tracker_password
-  scan_interval: 600 [Optional: Defaults to 1 hour]
+  scan_interval: 600
 ```
+
+`scan_interval` (in seconds) is optional and defaults to 1 hour (3600).
 
 ## Entities
 
@@ -174,7 +176,7 @@ cards:
         modify: parseFloat(x).toFixed(0)
 ```
 
-`by_producer` shows the top 50 of 184 producers (the `items` attribute itself is capped at 100 by the integration). Explicit column `id`s are required: with list-of-dict expansion, `sort_by` needs them. `sensor.cellar_tracker_by_producer`, `sensor.cellar_tracker_by_region` and `sensor.cellar_tracker_by_score_band` can be swapped for any of the other slice sensors (`by_store`, `by_appellation`, `by_varietal`, `by_mastervarietal`, `by_vintage`, `by_subregion`) using the same column layout.
+`by_producer` shows the top 50 producers by count (the `items` attribute itself is capped by the integration; the sensor's `items_total` attribute carries the full distinct-value count so a card can show e.g. "50 of N"). Explicit column `id`s are required: with list-of-dict expansion, `sort_by` needs them. `sensor.cellar_tracker_by_producer`, `sensor.cellar_tracker_by_region` and `sensor.cellar_tracker_by_score_band` can be swapped for any of the other slice sensors (`by_store`, `by_appellation`, `by_varietal`, `by_mastervarietal`, `by_vintage`, `by_subregion`) using the same column layout.
 
 # Contribute
 Feel free to contribute by opening a PR, issue on this project

@@ -17,7 +17,6 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from .const import (
-    COUNT_COLUMN,
     CURRENCY_COLUMN,
     DEFAULT_SCORE_BANDS,
     ITEMS_LIMIT,
@@ -83,7 +82,7 @@ def _score_band_items(df: pd.DataFrame, score_bands) -> list[GroupItem]:
     """Bucket scored rows into bands. Unscored rows are not bucketed."""
     scored = df[df[SCORE_COLUMN].notna()]
     items: list[GroupItem] = []
-    for _, _upper, label in _ordered(score_bands):
+    for _, _upper, label in tuple(score_bands):
         chunk = scored[
             scored[SCORE_COLUMN].map(
                 lambda s, label=label: _band_for(float(s), score_bands) == label
@@ -102,11 +101,6 @@ def _score_band_items(df: pd.DataFrame, score_bands) -> list[GroupItem]:
         )
     items.sort(key=lambda item: (-item.count, item.name))
     return items
-
-
-def _ordered(score_bands):
-    """Bands in configured order. Kept separate so callers cannot mutate."""
-    return tuple(score_bands)
 
 
 def aggregate(
@@ -187,7 +181,6 @@ def items_payload(
 
 
 __all__ = [
-    "COUNT_COLUMN",
     "NV_LABEL",
     "NV_SENTINEL",
     "CellarData",

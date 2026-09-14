@@ -55,10 +55,33 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         timedelta(seconds=seconds),
         DEFAULT_SCORE_BANDS,
     )
-    await coordinator.async_config_entry_first_refresh()
-    hass.data[DOMAIN] = coordinator
+    await coordinator.async_refresh()
+    if not coordinator.last_update_success or coordinator.data is None:
+        _LOGGER.error(
+            "Initial CellarTracker fetch failed; not setting up. Error: %s",
+            coordinator.last_exception,
+        )
+        return False
 
-    await async_cleanup_registry(hass, expected_unique_ids(coordinator.data))
+    hass.data[DOMAIN] = coordinator
+    await coordinator.async_register_shutdown()
+
+    # Only clean the registry against data we trust. A fetch can "succeed"
+    # with zero rows if CellarTracker returns a maintenance page or an error
+    # body: csv.DictReader yields nothing, no exception is raised, and
+    # expected_unique_ids() would then contain only the 13 fixed ids --
+    # deleting all 34 per-value entities, irreversibly, along with any
+    # renames and area assignments the user made.
+    if coordinator.data.total_bottles and coordinator.data.low:
+        removed = await async_cleanup_registry(
+            hass, expected_unique_ids(coordinator.data)
+        )
+        _LOGGER.debug("Registry cleanup removed %s stale entities", removed)
+    else:
+        _LOGGER.warning(
+            "Skipping registry cleanup: the inventory came back empty or "
+            "without recognised columns"
+        )
 
     hass.async_create_task(
         hdisco.async_load_platform(hass, "sensor", DOMAIN, {}, config)

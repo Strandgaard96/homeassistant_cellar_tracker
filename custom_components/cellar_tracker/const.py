@@ -48,7 +48,6 @@ NV_LABEL = "NV"
 SCORE_COLUMN = "CT"
 VALUATION_COLUMN = "Valuation"
 CURRENCY_COLUMN = "Currency"
-COUNT_COLUMN = "iWine"
 
 # Recorder discards an entity's whole attribute dict above 16384 bytes
 # (recorder/db_schema.py:90). Budget 12 KiB for margin.

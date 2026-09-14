@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Home Assistant **custom integration** (HACS-distributed) that pulls a CellarTracker wine inventory and exposes it as sensors. It is not a standalone app: there is no build step and no CI, but the aggregation and naming logic (`aggregate.py`, `naming.py`, `migrate.py`) is plain Python with no Home Assistant import, so it is covered by a `pytest` suite under `tests/`. The integration itself is under `custom_components/cellar_tracker/`.
+A Home Assistant **custom integration** (HACS-distributed) that pulls a CellarTracker wine inventory and exposes it as sensors. It is not a standalone app: there is no build step and no CI. Of the aggregation and naming logic, only `aggregate.py`, `const.py` and `naming.py` are plain Python with no Home Assistant import; `migrate.py` does import `homeassistant.core` and `homeassistant.helpers.entity_registry`. All of it is covered by a `pytest` suite under `tests/`. The integration itself is under `custom_components/cellar_tracker/`.
 
 ## Commands
 
@@ -19,11 +19,9 @@ uv run --with homeassistant --with cellartracker --with pytest --with pandas pyt
 
 All three must come back clean before committing. Config lives in `pyproject.toml`, which is dev tooling only and is never shipped to a user's HA instance.
 
-`uvx ruff format .` is configured but has **not** been run on the existing code: `__init__.py` uses 3-space indents throughout, so formatting it rewrites the whole file and destroys `git blame`. Leave that decision to a deliberate, standalone commit.
-
 ## Development workflow
 
-`aggregate.py`, `naming.py` and `migrate.py` are exercised by the `tests/` pytest suite (no Home Assistant install needed to run it, but `homeassistant` is pulled in as a dependency for `tests/fixtures.py` and the sensor-class tests). `coordinator.py`, `sensor.py` and `__init__.py` touch Home Assistant APIs directly and have no such harness — to exercise those you must run them inside Home Assistant:
+`aggregate.py`, `naming.py` and `migrate.py` are exercised by the `tests/` pytest suite. A Home Assistant install is required to run it: `homeassistant` is pulled in as a dependency for `tests/fixtures.py`, the sensor-class tests, and `migrate.py`'s own imports. `coordinator.py`, `sensor.py` and `__init__.py` touch Home Assistant APIs directly and have no such harness — to exercise those you must run them inside Home Assistant:
 
 ```bash
 # Deploy into a HA instance
@@ -43,7 +41,7 @@ Config is YAML-only (no config flow). See README.md for the `cellar_tracker:` bl
 
 ## Architecture
 
-**Coordinator + platform split.** `__init__.py` owns data fetching via `CellarTrackerCoordinator` (`coordinator.py`); `sensor.py` owns entities. They communicate only through `hass.data[DOMAIN]`, which holds the single coordinator instance. `async_setup()` builds the coordinator, awaits `async_config_entry_first_refresh()`, runs registry cleanup, then schedules `discovery.async_load_platform(...)` — so `async_setup_platform` can assume data is already populated. Anything that changes the shape of the data must be changed in `aggregate.py`, `naming.py`, and `sensor.py` together.
+**Coordinator + platform split.** `__init__.py` owns data fetching via `CellarTrackerCoordinator` (`coordinator.py`); `sensor.py` owns entities. They communicate only through `hass.data[DOMAIN]`, which holds the single coordinator instance. `async_setup()` builds the coordinator and awaits `coordinator.async_refresh()` -- not `async_config_entry_first_refresh()`, which raises unconditionally when `config_entry` is `None`, as it always is for this YAML-only integration. It then checks `last_update_success`/`data` explicitly and bails out (`return False`) on failure, registers coordinator shutdown via `async_register_shutdown()` (there is no config entry to do this for us), runs registry cleanup only when the fetched data looks trustworthy, then schedules `discovery.async_load_platform(...)` — so `async_setup_platform` can assume data is already populated. Anything that changes the shape of the data must be changed in `aggregate.py`, `naming.py`, and `sensor.py` together.
 
 **`CellarData` (`aggregate.py`) is the data contract.** `aggregate()` fetches the inventory, loads it into a pandas DataFrame, and produces a `CellarData` with: `low`, a dict of six low-cardinality dimensions (`country`, `type`, `size`, `category`, `location`, `color`) each mapping to a list of `GroupItem(name, count, value_avg, score_avg)`; `tails`, the same shape for nine long-tail/slice dimensions (`producer`, `store`, `appellation`, `varietal`, `mastervarietal`, `vintage`, `subregion`, `region`, `score_band`); and four scalars, `total_bottles`, `total_value`, `average_value`, `average_score`. `build_entities()` (`sensor.py`) walks `low` to build one `CellarValueSensor` per value, `SLICE_DIMENSIONS` to build one `CellarSliceSensor` per long-tail dimension, and the scalar specs to build four `CellarScalarSensor`s — 47 entities total. Adding a new low-cardinality or slice dimension automatically fans out into new entities; nothing here is a dict keyed by an open-ended shape any more.
 
@@ -57,7 +55,7 @@ Config is YAML-only (no config flow). See README.md for the `cellar_tracker:` bl
 
 **Monetary values are native numbers, unit read from the data.** `total_value` gets `device_class: monetary`, `state_class: total` (measurement is invalid for monetary — HA logs a warning on every install if used), and a `native_unit_of_measurement` set to `coordinator.data.currency`, not hardcoded. `average_value` gets the same currency unit but no `device_class`, since an average is not a total.
 
-**Quirks to preserve unless deliberately changing them:** vintage `"1001"` is remapped to `"NV"` (non-vintage) during aggregation; `Price` and `Valuation` are coerced with `pd.to_numeric` and will raise on non-numeric cells rather than coercing to NaN.
+**Quirks to preserve unless deliberately changing them:** vintage `"1001"` is remapped to `"NV"` (non-vintage) during aggregation; `Valuation` and `CT` (the score column) are coerced with `pd.to_numeric(..., errors="coerce")`, so a junk cell becomes NaN instead of killing the whole update.
 
 ## Dependencies
 

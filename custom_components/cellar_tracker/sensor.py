@@ -15,8 +15,6 @@ Two entity shapes, split by cardinality:
 
 from __future__ import annotations
 
-import logging
-
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -29,13 +27,9 @@ from .const import DOMAIN, LOW_CARDINALITY
 from .coordinator import CellarTrackerCoordinator
 from .naming import SLICE_DIMENSIONS, unique_slugs
 
-_LOGGER = logging.getLogger(__name__)
-
 
 class _Base(CoordinatorEntity[CellarTrackerCoordinator], SensorEntity):
     """Shared availability policy."""
-
-    _attr_should_poll = False
 
     @property
     def available(self) -> bool:
@@ -115,7 +109,8 @@ class CellarSliceSensor(_Base):
 
     @property
     def extra_state_attributes(self) -> dict[str, object]:
-        return {"items": items_payload(self._items())}
+        items = self._items()
+        return {"items": items_payload(items), "items_total": len(items)}
 
 
 class CellarScalarSensor(_Base):
