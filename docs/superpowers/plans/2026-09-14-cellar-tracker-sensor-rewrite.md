@@ -657,6 +657,19 @@ from custom_components.cellar_tracker.const import ITEMS_LIMIT, MAX_ATTR_BYTES
 from tests.fixtures import SAMPLE_ROWS
 
 
+def test_measured_constants_are_pinned():
+    """These are measurements, not preferences.
+
+    MAX_ATTR_BYTES leaves margin under Home Assistant's 16384-byte recorder
+    cap; ITEMS_LIMIT exists because all 184 producer entries serialise to
+    17112 bytes, over that cap. Raising either without re-measuring
+    reintroduces the bug this rewrite fixed, so pin them.
+    """
+    assert MAX_ATTR_BYTES == 12288
+    assert ITEMS_LIMIT == 100
+    assert MAX_ATTR_BYTES < 16384, "must stay under the recorder's hard cap"
+
+
 def test_payload_shape_has_no_derived_fields():
     # pct and value_total are computed in the frontend, not stored: it cuts
     # roughly 35% off the largest payload.
@@ -747,7 +760,7 @@ Import `ITEMS_LIMIT` from `.const` and add `"items_payload"` to `__all__`.
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q`
-Expected: PASS, 18 passed.
+Expected: PASS, 19 passed.
 
 If the budget test fails, the fix is to shorten the payload, not to raise `MAX_ATTR_BYTES`.
 
