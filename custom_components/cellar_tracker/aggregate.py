@@ -70,6 +70,44 @@ def _group(df: pd.DataFrame, column: str) -> list[GroupItem]:
     return items
 
 
+def _band_for(score: float, score_bands) -> str | None:
+    """Return the label of the band this score falls in."""
+    for lower, upper, label in score_bands:
+        if (lower is None or score >= lower) and (upper is None or score < upper):
+            return label
+    return None
+
+
+def _score_band_items(df: pd.DataFrame, score_bands) -> list[GroupItem]:
+    """Bucket scored rows into bands. Unscored rows are not bucketed."""
+    scored = df[df[SCORE_COLUMN].notna()]
+    items: list[GroupItem] = []
+    for _, _upper, label in _ordered(score_bands):
+        chunk = scored[
+            scored[SCORE_COLUMN].map(
+                lambda s, label=label: _band_for(float(s), score_bands) == label
+            )
+        ]
+        if not len(chunk):
+            continue
+        valuations = chunk[VALUATION_COLUMN].dropna()
+        items.append(
+            GroupItem(
+                name=label,
+                count=len(chunk),
+                value_avg=round(float(valuations.mean()), 2) if len(valuations) else 0.0,
+                score_avg=round(float(chunk[SCORE_COLUMN].mean()), 2),
+            )
+        )
+    items.sort(key=lambda item: (-item.count, item.name))
+    return items
+
+
+def _ordered(score_bands):
+    """Bands in configured order. Kept separate so callers cannot mutate."""
+    return tuple(score_bands)
+
+
 def aggregate(
     rows: list[dict[str, str]],
     score_bands=DEFAULT_SCORE_BANDS,
@@ -79,6 +117,11 @@ def aggregate(
         return CellarData()
 
     df = pd.DataFrame(rows)
+
+    # CellarTracker encodes non-vintage as 1001. Relabel before grouping so
+    # the label rather than the sentinel reaches the entity.
+    if LONG_TAIL["vintage"] in df:
+        df[LONG_TAIL["vintage"]] = df[LONG_TAIL["vintage"]].replace(NV_SENTINEL, NV_LABEL)
 
     # errors="coerce" turns a blank or junk cell into NaN. The previous
     # implementation used the default, which raises and kills the whole
@@ -108,6 +151,9 @@ def aggregate(
     for slug, column in LONG_TAIL.items():
         if column in df:
             data.tails[slug] = _group(df, column)
+
+    if SCORE_COLUMN in df:
+        data.tails["score_band"] = _score_band_items(df, score_bands)
 
     return data
 
