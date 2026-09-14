@@ -28,6 +28,15 @@ async def async_cleanup_registry(hass: HomeAssistant, expected: set[str]) -> int
 
     Returns the number removed.
     """
+    if not expected:
+        _LOGGER.warning(
+            "Refusing to clean the entity registry: the expected id set is "
+            "empty, which would delete every Cellar Tracker entity. This "
+            "should be unreachable -- expected_unique_ids() always seeds the "
+            "fixed slice and scalar ids."
+        )
+        return 0
+
     registry = er.async_get(hass)
     ours = {
         entry.unique_id: entry.entity_id
