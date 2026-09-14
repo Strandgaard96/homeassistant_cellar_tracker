@@ -19,7 +19,7 @@
 - **`_unrecorded_attributes` must be a class attribute.** Instance attributes are ignored by the recorder.
 - **`homeassistant` IS installed in the test environment.** Measured: HA 2026.2.3 resolves alongside pandas and the full suite runs in ~2.3s. Modules may import Home Assistant at module level normally. `aggregate.py` and `naming.py` still stay HA-free, but for separation of concerns, not testability.
 - **Three frontend dependencies only:** mushroom, flex-table-card, card-mod. No `auto-entities`, no `apexcharts-card`, no `sankey-chart`, no custom Lovelace card.
-- **Run tests with:** `uv run --with homeassistant --with pytest --with pandas pytest tests -q` from the repo root. Verified working.
+- **Run tests with:** `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q` from the repo root. Verified working. `cellartracker` is required because the package `__init__.py` imports it, and importing any submodule executes `__init__.py`.
 - **Lint gate:** `uvx ruff check .` and `uvx ty check` must both pass before every commit.
 - **Do not run `ruff format`.** `__init__.py` uses three-space indents; formatting rewrites the whole file and destroys blame. Out of scope.
 - **Never use `git add -A`.** Stage named paths only.
@@ -146,7 +146,7 @@ pythonpath = ["."]
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q`
 Expected: PASS, 3 passed.
 
 - [ ] **Step 5: Commit**
@@ -202,7 +202,7 @@ def test_score_bands_are_contiguous_and_cover_everything():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_const.py -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests/test_const.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'custom_components.cellar_tracker.const'`
 
 - [ ] **Step 3: Write the implementation**
@@ -273,7 +273,7 @@ ITEMS_LIMIT = 100
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_const.py -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests/test_const.py -q`
 Expected: PASS, 3 passed.
 
 - [ ] **Step 5: Lint and commit**
@@ -348,7 +348,7 @@ def test_currency_is_read_from_the_data(data):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_aggregate.py -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests/test_aggregate.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'custom_components.cellar_tracker.aggregate'`
 
 - [ ] **Step 3: Write the implementation**
@@ -475,7 +475,7 @@ __all__ = ["CellarData", "GroupItem", "aggregate", "COUNT_COLUMN", "NV_LABEL", "
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_aggregate.py -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests/test_aggregate.py -q`
 Expected: PASS, 6 passed.
 
 - [ ] **Step 5: Lint and commit**
@@ -559,7 +559,7 @@ def test_empty_inventory_returns_empty_data():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_aggregate.py -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests/test_aggregate.py -q`
 Expected: FAIL — `KeyError: 'score_band'` and `assert 'NV' in ['1001', '2018']`
 
 - [ ] **Step 3: Write the implementation**
@@ -621,7 +621,7 @@ And at the end of `aggregate`, before `return data`:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q`
 Expected: PASS, 15 passed.
 
 - [ ] **Step 5: Lint and commit**
@@ -720,7 +720,7 @@ def test_uncapped_payload_would_have_blown_the_recorder_cap():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_payload_size.py -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests/test_payload_size.py -q`
 Expected: FAIL with `ImportError: cannot import name 'items_payload'`
 
 - [ ] **Step 3: Write the implementation**
@@ -759,7 +759,7 @@ Import `ITEMS_LIMIT` from `.const` and add `"items_payload"` to `__all__`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q`
 Expected: PASS, 19 passed.
 
 If the budget test fails, the fix is to shorten the payload, not to raise `MAX_ATTR_BYTES`.
@@ -1183,7 +1183,7 @@ def test_slice_sensors_exclude_items_from_the_recorder():
     assert "items" in sensor.CellarSliceSensor._unrecorded_attributes
 ```
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_sensor_classes.py -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests/test_sensor_classes.py -q`
 Expected: 4 passed.
 
 - [ ] **Step 5: Commit**
@@ -1241,7 +1241,7 @@ def test_stable_order_independent_of_input_order():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_slug.py -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests/test_slug.py -q`
 Expected: FAIL with `ImportError: cannot import name 'unique_slugs'`
 
 - [ ] **Step 3: Write the implementation**
@@ -1319,7 +1319,7 @@ from .naming import SLICE_DIMENSIONS, unique_slugs
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q`
 Expected: PASS, 22 passed.
 
 - [ ] **Step 5: Lint and commit**
@@ -1376,7 +1376,7 @@ def test_never_removes_an_expected_id_even_if_registered_has_more():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_migrate.py -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests/test_migrate.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'custom_components.cellar_tracker.migrate'`
 
 - [ ] **Step 3: Write the implementation**
@@ -1433,7 +1433,7 @@ async def async_cleanup_registry(hass: HomeAssistant, expected: set[str]) -> int
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q`
 Expected: PASS, 25 passed.
 
 - [ ] **Step 5: Lint and commit**
@@ -1552,7 +1552,7 @@ Expected: `both valid`
 
 - [ ] **Step 4: Run the full suite and lint**
 
-Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q && uvx ruff check . && uvx ty check`
+Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q && uvx ruff check . && uvx ty check`
 Expected: 25 passed, both linters clean.
 
 - [ ] **Step 5: Commit**
@@ -1627,7 +1627,7 @@ Wait for two refreshes, then check Developer Tools → Statistics for `sensor.ce
 
 - [ ] **Step 6: Commit any fixes**
 
-If defects were found, fix them, re-run `uv run --with homeassistant --with pytest --with pandas pytest tests -q`, and commit with a message naming what the live load caught.
+If defects were found, fix them, re-run `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q`, and commit with a message naming what the live load caught.
 
 ---
 
@@ -1788,7 +1788,7 @@ Also update the **Architecture** section: the data dict contract is now `CellarD
 Add to the Commands section:
 
 ```markdown
-uv run --with homeassistant --with pytest --with pandas pytest tests -q   # tests
+uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q   # tests
 ```
 
 - [ ] **Step 3: Verify the README has no stale references**
