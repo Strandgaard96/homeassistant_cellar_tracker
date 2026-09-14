@@ -15,9 +15,9 @@
 - **Minimum Home Assistant: 2024.6.0.** Declare in `hacs.json` as `"homeassistant": "2024.6.0"`.
 - **`device_class: monetary` requires `state_class: total`.** `measurement` is invalid with it — `sensor/const.py:844` maps `MONETARY` to `{TOTAL}` only. Averages get no `device_class`.
 - **No `numpy` scalars in attributes or states.** `numpy.float64` is a `float` subclass and passes HA's encoder; `numpy.int64` is **not** an `int` subclass and raises `TypeError: Type is not JSON serializable: numpy.int64`. Cast with `int()` / `float()`.
-- **Attribute payload budget: ≤ 8 KB serialised per entity.** Hard cap is `MAX_STATE_ATTRS_BYTES = 16384` (`recorder/db_schema.py:90`); over it the recorder stores `{}` for the entity's *entire* attribute dict.
+- **Attribute payload budget: ≤ 12 KiB serialised per entity, and `items` is capped at the top 100 entries by count.** Hard cap is `MAX_STATE_ATTRS_BYTES = 16384` (`recorder/db_schema.py:90`); over it the recorder stores `{}` for the entity's *entire* attribute dict. Measured: all 184 producers serialise to **17,112 bytes**, over the hard cap — hence the limit. 100 entries measure 9,300 bytes at realistic name lengths.
 - **`_unrecorded_attributes` must be a class attribute.** Instance attributes are ignored by the recorder.
-- **`aggregate.py` imports no Home Assistant module.** This is what makes it testable.
+- **Any module a test imports must have no module-level Home Assistant import.** That is `aggregate.py`, `const.py`, `naming.py` and `migrate.py`. `homeassistant` is not installed in the test environment, so a module-level import fails collection outright. Where an HA API is genuinely needed in such a module, import it *inside* the function.
 - **Three frontend dependencies only:** mushroom, flex-table-card, card-mod. No `auto-entities`, no `apexcharts-card`, no `sankey-chart`, no custom Lovelace card.
 - **Run tests with:** `uv run --with pytest --with pandas pytest tests -q` from the repo root. Verified working.
 - **Lint gate:** `uvx ruff check .` and `uvx ty check` must both pass before every commit.
@@ -30,6 +30,7 @@
 |---|---|
 | `custom_components/cellar_tracker/const.py` | **Create.** `DOMAIN`, dimension→column maps, default score bands, sentinels. No logic. |
 | `custom_components/cellar_tracker/aggregate.py` | **Create.** Pure. All pandas. Takes raw rows, returns dataclasses. No HA imports. |
+| `custom_components/cellar_tracker/naming.py` | **Create.** Pure. `slugify`, `unique_slugs`, `expected_unique_ids`. No HA imports — `tests/test_slug.py` imports it. |
 | `custom_components/cellar_tracker/coordinator.py` | **Create.** `CellarTrackerCoordinator(DataUpdateCoordinator)`. Owns fetch + `UpdateFailed`. |
 | `custom_components/cellar_tracker/sensor.py` | **Rewrite.** Three entity classes + platform setup. |
 | `custom_components/cellar_tracker/__init__.py` | **Rewrite.** Config schema, coordinator wiring, registry cleanup. |
@@ -262,8 +263,12 @@ CURRENCY_COLUMN = "Currency"
 COUNT_COLUMN = "iWine"
 
 # Recorder discards an entity's whole attribute dict above 16384 bytes
-# (recorder/db_schema.py:90). Budget well under it.
-MAX_ATTR_BYTES = 8192
+# (recorder/db_schema.py:90). Budget 12 KiB for margin.
+MAX_ATTR_BYTES = 12288
+
+# All 184 producers serialise to 17112 bytes, over the hard cap. The
+# Explore card renders 50 rows, so 100 is already double what is shown.
+ITEMS_LIMIT = 100
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -495,12 +500,17 @@ git commit -m "feat: add pure aggregation module with native type casting"
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `tests/test_aggregate.py`:
+First change the **existing** import line at the top of `tests/test_aggregate.py` to also bring in `CellarData`:
 
 ```python
-from custom_components.cellar_tracker.aggregate import CellarData
+from custom_components.cellar_tracker.aggregate import CellarData, aggregate
+```
 
+Do not append a second import lower down: ruff selects `E`, and `E402 module-level-import-not-at-top-of-file` would fail the lint gate.
 
+Then append the tests:
+
+```python
 def test_vintage_1001_is_relabelled_nv(data):
     labels = [item.name for item in data.tails["vintage"]]
     assert "NV" in labels
@@ -526,8 +536,8 @@ def test_group_with_no_scores_reports_none():
     assert result.low["country"][0].score_avg is None
 
 
-def test_score_bands_bucket_by_ct():
-    bands = {item.name: item.count for item in data_for_bands().tails["score_band"]}
+def test_score_bands_bucket_by_ct(data):
+    bands = {item.name: item.count for item in data.tails["score_band"]}
     # 90.0 -> "90-91.9", 94.0 -> "94-94.9", 96.0 -> "95+", 88.0 -> "<90"
     assert bands["90-91.9"] == 1
     assert bands["94-94.9"] == 1
@@ -535,10 +545,6 @@ def test_score_bands_bucket_by_ct():
     assert bands["<90"] == 1
     # The unscored row is not bucketed at all.
     assert sum(bands.values()) == 4
-
-
-def data_for_bands():
-    return aggregate(SAMPLE_ROWS)
 
 
 def test_empty_inventory_returns_empty_data():
@@ -647,7 +653,7 @@ Create `tests/test_payload_size.py`:
 import json
 
 from custom_components.cellar_tracker.aggregate import aggregate, items_payload
-from custom_components.cellar_tracker.const import MAX_ATTR_BYTES
+from custom_components.cellar_tracker.const import ITEMS_LIMIT, MAX_ATTR_BYTES
 from tests.fixtures import SAMPLE_ROWS
 
 
@@ -664,22 +670,39 @@ def test_payload_is_json_serialisable_with_native_types():
     assert encoded
 
 
-def test_largest_realistic_payload_stays_within_budget():
-    # 184 producers is the measured worst case for this cellar.
+def test_payload_is_capped_and_within_budget():
+    # 184 producers is the measured worst case for this cellar, and all of
+    # them serialise to 17112 bytes -- over the recorder's 16384 hard cap.
+    # Hence ITEMS_LIMIT.
     rows = []
     for index in range(184):
         for _ in range(10):
             rows.append({
                 "iWine": str(index),
-                "Producer": f"Producer With A Fairly Long Name {index}",
+                "Producer": f"Chateau Example Number {index:03d}",
                 "Valuation": "1234.56",
                 "CT": "93.5",
                 "Currency": "DKK",
             })
-    payload = items_payload(aggregate(rows).tails["producer"])
-    assert len(payload) == 184
+    items = aggregate(rows).tails["producer"]
+    assert len(items) == 184, "aggregation keeps every group"
+
+    payload = items_payload(items)
+    assert len(payload) == ITEMS_LIMIT, "the attribute is capped"
     size = len(json.dumps(payload).encode())
     assert size <= MAX_ATTR_BYTES, f"payload is {size} bytes, budget is {MAX_ATTR_BYTES}"
+
+
+def test_uncapped_payload_would_have_blown_the_recorder_cap():
+    # Guards the reason ITEMS_LIMIT exists, so nobody quietly removes it.
+    rows = [
+        {"iWine": str(i), "Producer": f"Chateau Example Number {i:03d}",
+         "Valuation": "1234.56", "CT": "93.5", "Currency": "DKK"}
+        for i in range(184)
+    ]
+    items = aggregate(rows).tails["producer"]
+    uncapped = items_payload(items, limit=None)
+    assert len(json.dumps(uncapped).encode()) > 16384
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -692,13 +715,22 @@ Expected: FAIL with `ImportError: cannot import name 'items_payload'`
 Add to `aggregate.py`:
 
 ```python
-def items_payload(items: list[GroupItem]) -> list[dict[str, object]]:
+def items_payload(
+    items: list[GroupItem],
+    limit: int | None = ITEMS_LIMIT,
+) -> list[dict[str, object]]:
     """The exact dict shape that becomes an entity's `items` attribute.
 
     pct and value_total are deliberately absent: both are derivable
     (pct = count / total_bottles, value_total = count * value_avg) and
     dropping them cuts roughly 35% off the largest payload.
+
+    `limit` caps the list because all 184 producers serialise to 17112
+    bytes, over the recorder's 16384-byte cap. Items arrive sorted by
+    count descending, so the cap drops the long tail. Pass limit=None
+    only in tests that measure the uncapped size.
     """
+    selected = items if limit is None else items[:limit]
     return [
         {
             "name": item.name,
@@ -706,11 +738,11 @@ def items_payload(items: list[GroupItem]) -> list[dict[str, object]]:
             "value_avg": item.value_avg,
             "score_avg": item.score_avg,
         }
-        for item in items
+        for item in selected
     ]
 ```
 
-Add `"items_payload"` to `__all__`.
+Import `ITEMS_LIMIT` from `.const` and add `"items_payload"` to `__all__`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -830,10 +862,13 @@ git commit -m "feat: add DataUpdateCoordinator replacing double Throttle"
 
 ---
 
-### Task 7: Entity classes
+### Task 7: Naming module and entity classes
 
 **Files:**
+- Create: `custom_components/cellar_tracker/naming.py`
 - Rewrite: `custom_components/cellar_tracker/sensor.py`
+
+**Why two files:** `tests/test_slug.py` (Task 8) and the identity helpers must be importable without Home Assistant installed. `sensor.py` imports `homeassistant.components.sensor` at module level, so anything a test needs lives in `naming.py` instead.
 
 **Interfaces:**
 - Consumes: `CellarTrackerCoordinator`, `aggregate.items_payload`, `const.LOW_CARDINALITY`, `const.LONG_TAIL`, `const.DOMAIN`
@@ -841,7 +876,45 @@ git commit -m "feat: add DataUpdateCoordinator replacing double Throttle"
 
 Naming note: the spec suggested `_attr_has_entity_name = True`. This plan does **not** use it. Without a config entry there is no device, and `has_entity_name` is defined relative to a device; setting `_attr_name` directly gives predictable, verifiable entity IDs instead.
 
-- [ ] **Step 1: Write the implementation**
+- [ ] **Step 1: Write the naming module**
+
+Create `custom_components/cellar_tracker/naming.py`. **No Home Assistant imports** — Task 8's tests import this module directly.
+
+```python
+"""Entity identity: slugs, unique IDs, and the set of IDs we provide.
+
+Imports no Home Assistant module so it can be tested with plain pytest.
+"""
+
+from __future__ import annotations
+
+import re
+
+from .aggregate import CellarData
+from .const import DOMAIN, LONG_TAIL, LOW_CARDINALITY
+
+SCALAR_KEYS = ("total_bottles", "total_value", "average_value", "average_score")
+SLICE_DIMENSIONS = tuple(LONG_TAIL) + ("score_band",)
+
+
+def slugify(value: str) -> str:
+    """Lowercase and collapse anything non-alphanumeric to a single _."""
+    return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", value.lower())).strip("_")
+
+
+def expected_unique_ids(data: CellarData) -> set[str]:
+    """Unique IDs the new model produces. Task 9 removes everything else."""
+    ids = {f"{DOMAIN}_by_{dimension}" for dimension in SLICE_DIMENSIONS}
+    ids |= {f"{DOMAIN}_{key}" for key in SCALAR_KEYS}
+    for dimension in LOW_CARDINALITY:
+        for item in data.low.get(dimension, []):
+            ids.add(f"{DOMAIN}_{dimension}_{slugify(item.name)}")
+    return ids
+```
+
+Task 8 replaces the bare `slugify` calls here with collision-safe ones. Leave it as written for now.
+
+- [ ] **Step 2: Write the sensor platform**
 
 Replace `custom_components/cellar_tracker/sensor.py` entirely:
 
@@ -864,7 +937,6 @@ Two entity shapes, split by cardinality:
 from __future__ import annotations
 
 import logging
-import re
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -873,16 +945,12 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .aggregate import CellarData, items_payload
+from .aggregate import items_payload
 from .const import DOMAIN, LONG_TAIL, LOW_CARDINALITY
 from .coordinator import CellarTrackerCoordinator
+from .naming import SLICE_DIMENSIONS, slugify
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _slug(value: str) -> str:
-    """Lowercase and collapse anything non-alphanumeric to a single _."""
-    return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", value.lower())).strip("_")
 
 
 class _Base(CoordinatorEntity[CellarTrackerCoordinator], SensorEntity):
@@ -912,7 +980,7 @@ class CellarValueSensor(_Base):
         super().__init__(coordinator)
         self._dimension = dimension
         self._value = value
-        self._attr_unique_id = f"{DOMAIN}_{dimension}_{_slug(value)}"
+        self._attr_unique_id = f"{DOMAIN}_{dimension}_{slugify(value)}"
         self._attr_name = f"Cellar Tracker {dimension} {value}"
 
     def _item(self):
@@ -1026,20 +1094,10 @@ def build_entities(coordinator) -> list[SensorEntity]:
     for dimension in LOW_CARDINALITY:
         for item in coordinator.data.low.get(dimension, []):
             entities.append(CellarValueSensor(coordinator, dimension, item.name))
-    for dimension in list(LONG_TAIL) + ["score_band"]:
+    for dimension in SLICE_DIMENSIONS:
         entities.append(CellarSliceSensor(coordinator, dimension))
     entities.extend(_scalars(coordinator))
     return entities
-
-
-def expected_unique_ids(data: CellarData) -> set[str]:
-    """Unique IDs the new model produces. Task 9 removes everything else."""
-    ids = {f"{DOMAIN}_by_{dimension}" for dimension in list(LONG_TAIL) + ["score_band"]}
-    ids |= {f"{DOMAIN}_{key}" for key in
-            ("total_bottles", "total_value", "average_value", "average_score")}
-    for dimension, items in data.low.items():
-        ids |= {f"{DOMAIN}_{dimension}_{_slug(item.name)}" for item in items}
-    return ids
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
@@ -1050,15 +1108,20 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     async_add_entities(build_entities(coordinator))
 ```
 
-- [ ] **Step 2: Verify lint and types**
+- [ ] **Step 3: Verify lint and types**
 
 Run: `uvx ruff check . && uvx ty check`
 Expected: both clean.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Confirm naming.py imports without Home Assistant**
+
+Run: `uv run --with pytest --with pandas python -c "from custom_components.cellar_tracker.naming import slugify; print(slugify('Red - Fortified'))"`
+Expected: `red_fortified`. If this raises `ModuleNotFoundError: homeassistant`, `naming.py` has an HA import it must not have.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add custom_components/cellar_tracker/sensor.py
+git add custom_components/cellar_tracker/naming.py custom_components/cellar_tracker/sensor.py
 git commit -m "feat: hybrid entity model with correct device and state classes"
 ```
 
@@ -1067,8 +1130,10 @@ git commit -m "feat: hybrid entity model with correct device and state classes"
 ### Task 8: Slug collision guard
 
 **Files:**
-- Modify: `custom_components/cellar_tracker/sensor.py`
+- Modify: `custom_components/cellar_tracker/naming.py`
 - Test: `tests/test_slug.py`
+
+`naming.py` has no Home Assistant imports, which is why this test can import it directly.
 
 Two distinct values can slugify to the same string — `Domaine-Leroy` and `Domaine Leroy` both become `domaine_leroy`, as do `Ch. Margaux` / `Ch Margaux` and `A&B Wines` / `A B Wines`. Punctuation is what collides, not accents: `Côtes du Rhône` becomes `c_tes_du_rh_ne`, which is ugly but distinct from `cotes_du_rhone`. Two entities with the same `unique_id` means the second is silently dropped by Home Assistant.
 
@@ -1077,13 +1142,13 @@ Two distinct values can slugify to the same string — `Domaine-Leroy` and `Doma
 Create `tests/test_slug.py`:
 
 ```python
-from custom_components.cellar_tracker.sensor import _slug, unique_slugs
+from custom_components.cellar_tracker.naming import slugify, unique_slugs
 
 
 def test_slug_basics():
-    assert _slug("Côtes du Rhône") == "c_tes_du_rh_ne"
-    assert _slug("Red - Fortified") == "red_fortified"
-    assert _slug("  spaced  ") == "spaced"
+    assert slugify("Côtes du Rhône") == "c_tes_du_rh_ne"
+    assert slugify("Red - Fortified") == "red_fortified"
+    assert slugify("  spaced  ") == "spaced"
 
 
 def test_colliding_names_get_distinct_slugs():
@@ -1113,7 +1178,7 @@ Expected: FAIL with `ImportError: cannot import name 'unique_slugs'`
 
 - [ ] **Step 3: Write the implementation**
 
-Add to `sensor.py`, below `_slug`:
+Add to `naming.py`, below `slugify`:
 
 ```python
 def unique_slugs(values: list[str]) -> dict[str, str]:
@@ -1127,14 +1192,27 @@ def unique_slugs(values: list[str]) -> dict[str, str]:
     assigned: dict[str, str] = {}
     seen: dict[str, int] = {}
     for value in sorted(values):
-        base = _slug(value)
+        base = slugify(value)
         count = seen.get(base, 0)
         seen[base] = count + 1
         assigned[value] = base if count == 0 else f"{base}_{count + 1}"
     return assigned
 ```
 
-Use it in `build_entities` and `expected_unique_ids` so both agree:
+Rewrite `expected_unique_ids` in `naming.py` to use it, so it cannot disagree with `build_entities`:
+
+```python
+def expected_unique_ids(data: CellarData) -> set[str]:
+    ids = {f"{DOMAIN}_by_{dimension}" for dimension in SLICE_DIMENSIONS}
+    ids |= {f"{DOMAIN}_{key}" for key in SCALAR_KEYS}
+    for dimension in LOW_CARDINALITY:
+        items = data.low.get(dimension, [])
+        slugs = unique_slugs([item.name for item in items])
+        ids |= {f"{DOMAIN}_{dimension}_{slugs[item.name]}" for item in items}
+    return ids
+```
+
+Then use it in `build_entities` in `sensor.py`:
 
 ```python
 def build_entities(coordinator) -> list[SensorEntity]:
@@ -1163,13 +1241,13 @@ Change `CellarValueSensor.__init__` to take the slug rather than deriving it:
         self._attr_name = f"Cellar Tracker {dimension} {value}"
 ```
 
-And in `expected_unique_ids`:
+`sensor.py` must now import `unique_slugs` alongside `slugify`:
 
 ```python
-    for dimension, items in data.low.items():
-        slugs = unique_slugs([item.name for item in items])
-        ids |= {f"{DOMAIN}_{dimension}_{slugs[item.name]}" for item in items}
+from .naming import SLICE_DIMENSIONS, unique_slugs
 ```
+
+`slugify` is no longer called directly from `sensor.py`; remove it from that import if ruff flags it as unused.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1180,7 +1258,7 @@ Expected: PASS, 22 passed.
 
 ```bash
 uvx ruff check . && uvx ty check
-git add custom_components/cellar_tracker/sensor.py tests/test_slug.py
+git add custom_components/cellar_tracker/naming.py custom_components/cellar_tracker/sensor.py tests/test_slug.py
 git commit -m "fix: guard against slug collisions producing duplicate unique_ids"
 ```
 
@@ -1195,8 +1273,10 @@ git commit -m "fix: guard against slug collisions producing duplicate unique_ids
 Old entities carry `unique_id`s and no config entry, so Home Assistant writes `unavailable` for every one of them at every start, indefinitely. The 30-day orphan purge only touches entries already marked deleted. Without this, users are left with ~400 grey entities to delete by hand.
 
 **Interfaces:**
-- Consumes: `sensor.expected_unique_ids`
+- Consumes: `naming.expected_unique_ids`
 - Produces: `stale_unique_ids(registered: set[str], expected: set[str]) -> set[str]` (pure, testable) and `async_cleanup_registry(hass, expected) -> int`
+
+`tests/test_migrate.py` imports this module, so it must have **no module-level Home Assistant import**. The entity-registry helper is imported inside `async_cleanup_registry`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1247,11 +1327,12 @@ users inherit roughly 400 grey entities to delete by hand.
 from __future__ import annotations
 
 import logging
-
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from typing import TYPE_CHECKING
 
 from .const import DOMAIN
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1261,11 +1342,16 @@ def stale_unique_ids(registered: set[str], expected: set[str]) -> set[str]:
     return registered - expected
 
 
-async def async_cleanup_registry(hass: HomeAssistant, expected: set[str]) -> int:
+async def async_cleanup_registry(hass: "HomeAssistant", expected: set[str]) -> int:
     """Delete this platform's registry entries that are no longer provided.
 
     Returns the number removed.
+
+    The entity_registry import is function-level on purpose: this module is
+    imported by tests that run without Home Assistant installed.
     """
+    from homeassistant.helpers import entity_registry as er
+
     registry = er.async_get(hass)
     ours = {
         entry.unique_id: entry.entity_id
@@ -1331,7 +1417,7 @@ from homeassistant.helpers.typing import ConfigType
 from .const import DEFAULT_SCORE_BANDS, DOMAIN
 from .coordinator import CellarTrackerCoordinator
 from .migrate import async_cleanup_registry
-from .sensor import expected_unique_ids
+from .naming import expected_unique_ids
 
 _LOGGER = logging.getLogger(__name__)
 
