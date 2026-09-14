@@ -1171,21 +1171,15 @@ Home Assistant is installed in the test environment, so the riskiest thing in th
 Create `tests/test_sensor_classes.py`:
 
 ```python
-from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.components.sensor.const import DEVICE_CLASS_STATE_CLASSES
 
 from custom_components.cellar_tracker import sensor
 
 
-def test_entity_classes_are_importable():
-    assert sensor.CellarValueSensor
-    assert sensor.CellarSliceSensor
-    assert sensor.CellarScalarSensor
-
-
 def test_every_scalar_uses_a_valid_device_and_state_class_pairing():
     # HA logs a warning per entity for an invalid pairing, and its own code
-    # comment says this should raise in a future release.
+    # comment says this should raise in a future release. This is the defect
+    # the rewrite exists to fix.
     for key, _name, device_class, state_class, _unit, _icon in sensor.SCALAR_SPECS:
         if device_class is None:
             continue
@@ -1195,20 +1189,15 @@ def test_every_scalar_uses_a_valid_device_and_state_class_pairing():
         )
 
 
-def test_monetary_requires_total():
-    # Pins the specific defect this rewrite exists to fix.
-    assert DEVICE_CLASS_STATE_CLASSES[SensorDeviceClass.MONETARY] == {
-        SensorStateClass.TOTAL
-    }
-
-
 def test_slice_sensors_exclude_items_from_the_recorder():
     # Without this the recorder blanks the entity's whole attribute dict.
     assert "items" in sensor.CellarSliceSensor._unrecorded_attributes
 ```
 
+Importing `sensor` at the top of the test file already covers "does it import at all", so there is no separate import test.
+
 Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests/test_sensor_classes.py -q`
-Expected: 4 passed.
+Expected: 2 passed.
 
 - [ ] **Step 5: Commit**
 
