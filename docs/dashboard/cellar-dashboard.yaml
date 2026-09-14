@@ -11,42 +11,36 @@ views:
       heading: Cellar at a glance
       heading_style: title
       icon: mdi:bottle-wine
-    - type: custom:mushroom-template-card
-      primary: '{{ states(''sensor.cellar_tracker_total_bottles'') }} bottles'
-      secondary: '{{ states(''sensor.cellar_tracker_by_producer'') }} producers · {{ states(''sensor.cellar_tracker_by_region'') }} regions'
-      icon: mdi:bottle-wine
-      icon_color: red
+    - type: tile
       entity: sensor.cellar_tracker_total_bottles
-      tap_action:
-        action: more-info
-      card_mod:
-        style: 'ha-card { --mush-icon-size: 46px; }
-
-          '
-    - type: custom:mushroom-template-card
-      primary: '{{ (states(''sensor.cellar_tracker_total_value'') | float(0) / 1000) | round(0) }}k DKK'
-      secondary: '{{ states(''sensor.cellar_tracker_average_value'') | float(0) | round(0) }} DKK per bottle'
-      icon: mdi:cash-multiple
-      icon_color: green
+      icon: mdi:bottle-wine
+      color: red
+      name: Bottles
+    - type: tile
       entity: sensor.cellar_tracker_total_value
-      tap_action:
-        action: more-info
-      card_mod:
-        style: 'ha-card { --mush-icon-size: 46px; }
-
-          '
-    - type: custom:mushroom-template-card
-      primary: CT {{ states('sensor.cellar_tracker_average_score') }}
-      secondary: average community score
-      icon: mdi:star
-      icon_color: amber
+      icon: mdi:cash-multiple
+      color: green
+      name: Cellar value
+    - type: tile
+      entity: sensor.cellar_tracker_average_value
+      icon: mdi:tag
+      color: teal
+      name: Avg bottle
+    - type: tile
       entity: sensor.cellar_tracker_average_score
-      tap_action:
-        action: more-info
-      card_mod:
-        style: 'ha-card { --mush-icon-size: 46px; }
-
-          '
+      icon: mdi:star
+      color: amber
+      name: Avg CT score
+    - type: tile
+      entity: sensor.cellar_tracker_by_producer
+      icon: mdi:account-group
+      color: purple
+      name: Producers
+    - type: tile
+      entity: sensor.cellar_tracker_by_region
+      icon: mdi:map-marker
+      color: blue
+      name: Regions
   - type: grid
     cards:
     - type: heading
