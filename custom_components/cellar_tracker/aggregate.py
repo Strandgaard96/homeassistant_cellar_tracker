@@ -20,6 +20,7 @@ from .const import (
     COUNT_COLUMN,
     CURRENCY_COLUMN,
     DEFAULT_SCORE_BANDS,
+    ITEMS_LIMIT,
     LONG_TAIL,
     LOW_CARDINALITY,
     NV_LABEL,
@@ -158,4 +159,39 @@ def aggregate(
     return data
 
 
-__all__ = ["COUNT_COLUMN", "NV_LABEL", "NV_SENTINEL", "CellarData", "GroupItem", "aggregate"]
+def items_payload(
+    items: list[GroupItem],
+    limit: int | None = ITEMS_LIMIT,
+) -> list[dict[str, object]]:
+    """The exact dict shape that becomes an entity's `items` attribute.
+
+    pct and value_total are deliberately absent: both are derivable
+    (pct = count / total_bottles, value_total = count * value_avg) and
+    dropping them cuts roughly 35% off the largest payload.
+
+    `limit` caps the list because all 184 producers serialise to 17112
+    bytes, over the recorder's 16384-byte cap. Items arrive sorted by
+    count descending, so the cap drops the long tail. Pass limit=None
+    only in tests that measure the uncapped size.
+    """
+    selected = items if limit is None else items[:limit]
+    return [
+        {
+            "name": item.name,
+            "count": item.count,
+            "value_avg": item.value_avg,
+            "score_avg": item.score_avg,
+        }
+        for item in selected
+    ]
+
+
+__all__ = [
+    "COUNT_COLUMN",
+    "NV_LABEL",
+    "NV_SENTINEL",
+    "CellarData",
+    "GroupItem",
+    "aggregate",
+    "items_payload",
+]
