@@ -17,9 +17,9 @@
 - **No `numpy` scalars in attributes or states.** `numpy.float64` is a `float` subclass and passes HA's encoder; `numpy.int64` is **not** an `int` subclass and raises `TypeError: Type is not JSON serializable: numpy.int64`. Cast with `int()` / `float()`.
 - **Attribute payload budget: ≤ 12 KiB serialised per entity, and `items` is capped at the top 100 entries by count.** Hard cap is `MAX_STATE_ATTRS_BYTES = 16384` (`recorder/db_schema.py:90`); over it the recorder stores `{}` for the entity's *entire* attribute dict. Measured: all 184 producers serialise to **17,112 bytes**, over the hard cap — hence the limit. 100 entries measure 9,300 bytes at realistic name lengths.
 - **`_unrecorded_attributes` must be a class attribute.** Instance attributes are ignored by the recorder.
-- **Any module a test imports must have no module-level Home Assistant import.** That is `aggregate.py`, `const.py`, `naming.py` and `migrate.py`. `homeassistant` is not installed in the test environment, so a module-level import fails collection outright. Where an HA API is genuinely needed in such a module, import it *inside* the function.
+- **`homeassistant` IS installed in the test environment.** Measured: HA 2026.2.3 resolves alongside pandas and the full suite runs in ~2.3s. Modules may import Home Assistant at module level normally. `aggregate.py` and `naming.py` still stay HA-free, but for separation of concerns, not testability.
 - **Three frontend dependencies only:** mushroom, flex-table-card, card-mod. No `auto-entities`, no `apexcharts-card`, no `sankey-chart`, no custom Lovelace card.
-- **Run tests with:** `uv run --with pytest --with pandas pytest tests -q` from the repo root. Verified working.
+- **Run tests with:** `uv run --with homeassistant --with pytest --with pandas pytest tests -q` from the repo root. Verified working.
 - **Lint gate:** `uvx ruff check .` and `uvx ty check` must both pass before every commit.
 - **Do not run `ruff format`.** `__init__.py` uses three-space indents; formatting rewrites the whole file and destroys blame. Out of scope.
 - **Never use `git add -A`.** Stage named paths only.
@@ -146,7 +146,7 @@ pythonpath = ["."]
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --with pytest --with pandas pytest tests -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q`
 Expected: PASS, 3 passed.
 
 - [ ] **Step 5: Commit**
@@ -202,7 +202,7 @@ def test_score_bands_are_contiguous_and_cover_everything():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run --with pytest --with pandas pytest tests/test_const.py -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_const.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'custom_components.cellar_tracker.const'`
 
 - [ ] **Step 3: Write the implementation**
@@ -273,7 +273,7 @@ ITEMS_LIMIT = 100
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `uv run --with pytest --with pandas pytest tests/test_const.py -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_const.py -q`
 Expected: PASS, 3 passed.
 
 - [ ] **Step 5: Lint and commit**
@@ -348,7 +348,7 @@ def test_currency_is_read_from_the_data(data):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run --with pytest --with pandas pytest tests/test_aggregate.py -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_aggregate.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'custom_components.cellar_tracker.aggregate'`
 
 - [ ] **Step 3: Write the implementation**
@@ -475,7 +475,7 @@ __all__ = ["CellarData", "GroupItem", "aggregate", "COUNT_COLUMN", "NV_LABEL", "
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `uv run --with pytest --with pandas pytest tests/test_aggregate.py -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_aggregate.py -q`
 Expected: PASS, 6 passed.
 
 - [ ] **Step 5: Lint and commit**
@@ -559,7 +559,7 @@ def test_empty_inventory_returns_empty_data():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `uv run --with pytest --with pandas pytest tests/test_aggregate.py -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_aggregate.py -q`
 Expected: FAIL — `KeyError: 'score_band'` and `assert 'NV' in ['1001', '2018']`
 
 - [ ] **Step 3: Write the implementation**
@@ -621,7 +621,7 @@ And at the end of `aggregate`, before `return data`:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `uv run --with pytest --with pandas pytest tests -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q`
 Expected: PASS, 15 passed.
 
 - [ ] **Step 5: Lint and commit**
@@ -707,7 +707,7 @@ def test_uncapped_payload_would_have_blown_the_recorder_cap():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run --with pytest --with pandas pytest tests/test_payload_size.py -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_payload_size.py -q`
 Expected: FAIL with `ImportError: cannot import name 'items_payload'`
 
 - [ ] **Step 3: Write the implementation**
@@ -746,7 +746,7 @@ Import `ITEMS_LIMIT` from `.const` and add `"items_payload"` to `__all__`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `uv run --with pytest --with pandas pytest tests -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q`
 Expected: PASS, 18 passed.
 
 If the budget test fails, the fix is to shorten the payload, not to raise `MAX_ATTR_BYTES`.
@@ -868,7 +868,7 @@ git commit -m "feat: add DataUpdateCoordinator replacing double Throttle"
 - Create: `custom_components/cellar_tracker/naming.py`
 - Rewrite: `custom_components/cellar_tracker/sensor.py`
 
-**Why two files:** `tests/test_slug.py` (Task 8) and the identity helpers must be importable without Home Assistant installed. `sensor.py` imports `homeassistant.components.sensor` at module level, so anything a test needs lives in `naming.py` instead.
+**Why two files:** entity identity (slugs, unique IDs, the set of IDs we provide) is pure data logic with its own tests. Keeping it out of `sensor.py` lets Task 9's registry cleanup and Task 10's setup import it without pulling in entity classes.
 
 **Interfaces:**
 - Consumes: `CellarTrackerCoordinator`, `aggregate.items_payload`, `const.LOW_CARDINALITY`, `const.LONG_TAIL`, `const.DOMAIN`
@@ -878,7 +878,7 @@ Naming note: the spec suggested `_attr_has_entity_name = True`. This plan does *
 
 - [ ] **Step 1: Write the naming module**
 
-Create `custom_components/cellar_tracker/naming.py`. **No Home Assistant imports** — Task 8's tests import this module directly.
+Create `custom_components/cellar_tracker/naming.py`. Keep it free of Home Assistant imports: it is pure identity logic.
 
 ```python
 """Entity identity: slugs, unique IDs, and the set of IDs we provide.
@@ -1055,37 +1055,49 @@ class CellarScalarSensor(_Base):
         return getattr(self.coordinator.data, self._key)
 
 
+# (key, display name, device_class, state_class, unit, icon).
+# CURRENCY means "substitute the cellar's currency at build time".
+# Kept module-level so tests/test_sensor_classes.py can check every
+# device_class/state_class pairing without constructing a coordinator.
+CURRENCY = object()
+
+SCALAR_SPECS = (
+    (
+        "total_bottles", "Cellar Tracker total bottles",
+        None, SensorStateClass.MEASUREMENT, "bottles", "mdi:bottle-wine",
+    ),
+    # monetary requires TOTAL: sensor/const.py maps MONETARY to {TOTAL}
+    # only, and measurement logs a warning on every install.
+    (
+        "total_value", "Cellar Tracker total value",
+        SensorDeviceClass.MONETARY, SensorStateClass.TOTAL, CURRENCY, None,
+    ),
+    # An average is not a total, so it gets no device_class at all.
+    (
+        "average_value", "Cellar Tracker average value",
+        None, SensorStateClass.MEASUREMENT, CURRENCY, "mdi:cash",
+    ),
+    (
+        "average_score", "Cellar Tracker average score",
+        None, SensorStateClass.MEASUREMENT, "points", "mdi:star",
+    ),
+)
+
+
 def _scalars(coordinator) -> list[SensorEntity]:
     currency = coordinator.data.currency or None
-    return [
-        CellarScalarSensor(
-            coordinator, "total_bottles", "Cellar Tracker total bottles",
-            state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement="bottles",
-            icon="mdi:bottle-wine",
-        ),
-        # monetary requires TOTAL: sensor/const.py:844 maps MONETARY to
-        # {TOTAL} only, and measurement logs a warning on every install.
-        CellarScalarSensor(
-            coordinator, "total_value", "Cellar Tracker total value",
-            device_class=SensorDeviceClass.MONETARY,
-            state_class=SensorStateClass.TOTAL,
-            native_unit_of_measurement=currency,
-        ),
-        # An average is not a total, so it gets no device_class at all.
-        CellarScalarSensor(
-            coordinator, "average_value", "Cellar Tracker average value",
-            state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement=currency,
-            icon="mdi:cash",
-        ),
-        CellarScalarSensor(
-            coordinator, "average_score", "Cellar Tracker average score",
-            state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement="points",
-            icon="mdi:star",
-        ),
-    ]
+    entities: list[SensorEntity] = []
+    for key, name, device_class, state_class, unit, icon in SCALAR_SPECS:
+        attrs: dict[str, object] = {"state_class": state_class}
+        if device_class is not None:
+            attrs["device_class"] = device_class
+        resolved_unit = currency if unit is CURRENCY else unit
+        if resolved_unit is not None:
+            attrs["native_unit_of_measurement"] = resolved_unit
+        if icon is not None:
+            attrs["icon"] = icon
+        entities.append(CellarScalarSensor(coordinator, key, name, **attrs))
+    return entities
 
 
 def build_entities(coordinator) -> list[SensorEntity]:
@@ -1113,15 +1125,58 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 Run: `uvx ruff check . && uvx ty check`
 Expected: both clean.
 
-- [ ] **Step 4: Confirm naming.py imports without Home Assistant**
+- [ ] **Step 4: Add a smoke test for the device/state class pairing**
 
-Run: `uv run --with pytest --with pandas python -c "from custom_components.cellar_tracker.naming import slugify; print(slugify('Red - Fortified'))"`
-Expected: `red_fortified`. If this raises `ModuleNotFoundError: homeassistant`, `naming.py` has an HA import it must not have.
+Home Assistant is installed in the test environment, so the riskiest thing in this task can be checked without a running instance.
+
+`SCALAR_SPECS` is defined in Step 2's code as a module-level tuple of `(key, name, device_class, state_class, unit, icon)`, precisely so these pairings can be inspected without constructing a coordinator.
+
+Create `tests/test_sensor_classes.py`:
+
+```python
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.components.sensor.const import DEVICE_CLASS_STATE_CLASSES
+
+from custom_components.cellar_tracker import sensor
+
+
+def test_entity_classes_are_importable():
+    assert sensor.CellarValueSensor
+    assert sensor.CellarSliceSensor
+    assert sensor.CellarScalarSensor
+
+
+def test_every_scalar_uses_a_valid_device_and_state_class_pairing():
+    # HA logs a warning per entity for an invalid pairing, and its own code
+    # comment says this should raise in a future release.
+    for key, _name, device_class, state_class, _unit, _icon in sensor.SCALAR_SPECS:
+        if device_class is None:
+            continue
+        allowed = DEVICE_CLASS_STATE_CLASSES[device_class]
+        assert state_class in allowed, (
+            f"{key}: {state_class} invalid for {device_class}, allowed: {allowed}"
+        )
+
+
+def test_monetary_requires_total():
+    # Pins the specific defect this rewrite exists to fix.
+    assert DEVICE_CLASS_STATE_CLASSES[SensorDeviceClass.MONETARY] == {
+        SensorStateClass.TOTAL
+    }
+
+
+def test_slice_sensors_exclude_items_from_the_recorder():
+    # Without this the recorder blanks the entity's whole attribute dict.
+    assert "items" in sensor.CellarSliceSensor._unrecorded_attributes
+```
+
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_sensor_classes.py -q`
+Expected: 4 passed.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add custom_components/cellar_tracker/naming.py custom_components/cellar_tracker/sensor.py
+git add custom_components/cellar_tracker/naming.py custom_components/cellar_tracker/sensor.py tests/test_sensor_classes.py
 git commit -m "feat: hybrid entity model with correct device and state classes"
 ```
 
@@ -1173,7 +1228,7 @@ def test_stable_order_independent_of_input_order():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run --with pytest --with pandas pytest tests/test_slug.py -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_slug.py -q`
 Expected: FAIL with `ImportError: cannot import name 'unique_slugs'`
 
 - [ ] **Step 3: Write the implementation**
@@ -1251,7 +1306,7 @@ from .naming import SLICE_DIMENSIONS, unique_slugs
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `uv run --with pytest --with pandas pytest tests -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q`
 Expected: PASS, 22 passed.
 
 - [ ] **Step 5: Lint and commit**
@@ -1276,7 +1331,7 @@ Old entities carry `unique_id`s and no config entry, so Home Assistant writes `u
 - Consumes: `naming.expected_unique_ids`
 - Produces: `stale_unique_ids(registered: set[str], expected: set[str]) -> set[str]` (pure, testable) and `async_cleanup_registry(hass, expected) -> int`
 
-`tests/test_migrate.py` imports this module, so it must have **no module-level Home Assistant import**. The entity-registry helper is imported inside `async_cleanup_registry`.
+`homeassistant` is installed in the test environment, so import it normally at module level.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1308,7 +1363,7 @@ def test_never_removes_an_expected_id_even_if_registered_has_more():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run --with pytest --with pandas pytest tests/test_migrate.py -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests/test_migrate.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'custom_components.cellar_tracker.migrate'`
 
 - [ ] **Step 3: Write the implementation**
@@ -1327,12 +1382,11 @@ users inherit roughly 400 grey entities to delete by hand.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN
-
-if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1342,16 +1396,11 @@ def stale_unique_ids(registered: set[str], expected: set[str]) -> set[str]:
     return registered - expected
 
 
-async def async_cleanup_registry(hass: "HomeAssistant", expected: set[str]) -> int:
+async def async_cleanup_registry(hass: HomeAssistant, expected: set[str]) -> int:
     """Delete this platform's registry entries that are no longer provided.
 
     Returns the number removed.
-
-    The entity_registry import is function-level on purpose: this module is
-    imported by tests that run without Home Assistant installed.
     """
-    from homeassistant.helpers import entity_registry as er
-
     registry = er.async_get(hass)
     ours = {
         entry.unique_id: entry.entity_id
@@ -1371,7 +1420,7 @@ async def async_cleanup_registry(hass: "HomeAssistant", expected: set[str]) -> i
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `uv run --with pytest --with pandas pytest tests -q`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q`
 Expected: PASS, 25 passed.
 
 - [ ] **Step 5: Lint and commit**
@@ -1490,7 +1539,7 @@ Expected: `both valid`
 
 - [ ] **Step 4: Run the full suite and lint**
 
-Run: `uv run --with pytest --with pandas pytest tests -q && uvx ruff check . && uvx ty check`
+Run: `uv run --with homeassistant --with pytest --with pandas pytest tests -q && uvx ruff check . && uvx ty check`
 Expected: 25 passed, both linters clean.
 
 - [ ] **Step 5: Commit**
@@ -1565,7 +1614,7 @@ Wait for two refreshes, then check Developer Tools → Statistics for `sensor.ce
 
 - [ ] **Step 6: Commit any fixes**
 
-If defects were found, fix them, re-run `uv run --with pytest --with pandas pytest tests -q`, and commit with a message naming what the live load caught.
+If defects were found, fix them, re-run `uv run --with homeassistant --with pytest --with pandas pytest tests -q`, and commit with a message naming what the live load caught.
 
 ---
 
@@ -1726,7 +1775,7 @@ Also update the **Architecture** section: the data dict contract is now `CellarD
 Add to the Commands section:
 
 ```markdown
-uv run --with pytest --with pandas pytest tests -q   # tests
+uv run --with homeassistant --with pytest --with pandas pytest tests -q   # tests
 ```
 
 - [ ] **Step 3: Verify the README has no stale references**
