@@ -9,21 +9,6 @@ views:
           - entity: sensor.cellar_tracker_average_value
           - entity: sensor.cellar_tracker_average_score
 
-      - type: custom:mushroom-chips-card
-        chips:
-          - type: entity
-            entity: sensor.cellar_tracker_total_bottles
-            icon: mdi:bottle-wine
-          - type: entity
-            entity: sensor.cellar_tracker_total_value
-            icon: mdi:cash
-          - type: entity
-            entity: sensor.cellar_tracker_average_score
-            icon: mdi:star
-          - type: entity
-            entity: sensor.cellar_tracker_by_producer
-            icon: mdi:account-group
-
       - type: statistics-graph
         title: Cellar value
         entities:
