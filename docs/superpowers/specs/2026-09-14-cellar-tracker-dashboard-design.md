@@ -237,7 +237,7 @@ No custom Lovelace card will be written. This repo forks a semi-abandoned upstre
 
 ## Error handling
 
-- `pd.to_numeric` currently **raises** on a blank or non-numeric cell, taking down the whole update. Switch to `errors="coerce"` and drop NaN per aggregation. All 1751 rows parse today; that is luck, not a guarantee.
+- `pd.to_numeric` currently **raises on a non-numeric cell**, taking down the whole update. Measured: a blank string already coerces to `NaN` under the default, but `"N/A"` or any other junk raises `ValueError`. Switch to `errors="coerce"` and drop NaN per aggregation. All 1751 rows parse today; that is luck, not a guarantee.
 - `CT` is 98% filled. Score aggregation skips unparseable values rather than failing the group.
 - `Vintage` uses `1001` as the non-vintage sentinel, mapped to `NV` (behaviour preserved).
 - `Currency` must be a valid ISO 4217 code or the frontend formats it wrong. Validate; fall back to no `device_class` if it is not.

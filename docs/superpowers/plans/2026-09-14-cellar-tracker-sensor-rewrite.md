@@ -517,10 +517,33 @@ def test_vintage_1001_is_relabelled_nv(data):
     assert "1001" not in labels
 
 
-def test_blank_valuation_is_coerced_not_raised(data):
+def test_blank_valuation_is_excluded_from_totals(data):
     # Row 4 has Valuation="". Five bottles, four priced: 100+200+300+400.
+    # Note a blank already coerces to NaN under to_numeric's DEFAULT, so this
+    # alone does not prove errors="coerce" is present. The next test does.
     assert data.total_value == 1000.0
     assert data.average_value == 250.0
+
+
+def test_junk_numeric_cell_does_not_kill_the_update():
+    """This is the test that actually pins errors="coerce".
+
+    Measured: pd.to_numeric("") returns NaN even with the default
+    errors="raise", but "N/A" raises ValueError. CellarTracker can emit
+    "N/A", and under the old code one such cell took down every sensor.
+    Delete errors="coerce" from aggregate.py and this test fails; delete it
+    and ONLY the blank-cell test above still passes.
+    """
+    rows = [
+        {"iWine": "1", "Country": "Spain", "Valuation": "10.0",
+         "CT": "90.0", "Currency": "DKK"},
+        {"iWine": "2", "Country": "Spain", "Valuation": "N/A",
+         "CT": "not a score", "Currency": "DKK"},
+    ]
+    result = aggregate(rows)
+    assert result.total_bottles == 2
+    assert result.total_value == 10.0
+    assert result.low["country"][0].count == 2
 
 
 def test_blank_score_is_excluded_from_the_average(data):
@@ -622,7 +645,7 @@ And at the end of `aggregate`, before `return data`:
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q`
-Expected: PASS, 15 passed.
+Expected: PASS, 16 passed.
 
 - [ ] **Step 5: Lint and commit**
 
@@ -760,7 +783,7 @@ Import `ITEMS_LIMIT` from `.const` and add `"items_payload"` to `__all__`.
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q`
-Expected: PASS, 19 passed.
+Expected: PASS, 20 passed.
 
 If the budget test fails, the fix is to shorten the payload, not to raise `MAX_ATTR_BYTES`.
 
@@ -1320,7 +1343,7 @@ from .naming import SLICE_DIMENSIONS, unique_slugs
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q`
-Expected: PASS, 22 passed.
+Expected: PASS, 23 passed.
 
 - [ ] **Step 5: Lint and commit**
 
@@ -1434,7 +1457,7 @@ async def async_cleanup_registry(hass: HomeAssistant, expected: set[str]) -> int
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q`
-Expected: PASS, 25 passed.
+Expected: PASS, 26 passed.
 
 - [ ] **Step 5: Lint and commit**
 
@@ -1553,7 +1576,7 @@ Expected: `both valid`
 - [ ] **Step 4: Run the full suite and lint**
 
 Run: `uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q && uvx ruff check . && uvx ty check`
-Expected: 25 passed, both linters clean.
+Expected: 26 passed, both linters clean.
 
 - [ ] **Step 5: Commit**
 
