@@ -1,0 +1,26 @@
+title: Overview
+path: overview
+cards:
+  - type: custom:mushroom-chips-card
+    chips:
+      - type: entity
+        entity: sensor.cellar_tracker_total_bottles
+        icon: mdi:bottle-wine
+      - type: entity
+        entity: sensor.cellar_tracker_total_value
+        icon: mdi:cash
+      - type: entity
+        entity: sensor.cellar_tracker_average_score
+        icon: mdi:star
+      - type: entity
+        entity: sensor.cellar_tracker_by_producer
+        icon: mdi:account-group
+
+  - type: statistics-graph
+    title: Cellar value
+    entities:
+      - sensor.cellar_tracker_total_value
+    stat_types:
+      - state
+    days_to_show: 365
+    period: day

@@ -1,0 +1,62 @@
+title: Explore
+path: explore
+cards:
+  - type: custom:flex-table-card
+    title: By producer
+    entities:
+      include: sensor.cellar_tracker_by_producer
+    max_rows: 50
+    sort_by: count-
+    columns:
+      - name: Producer
+        id: name
+        data: items.name
+      - name: Bottles
+        id: count
+        data: items.count
+      - name: Avg value
+        id: value_avg
+        data: items.value_avg
+        modify: parseFloat(x).toFixed(0)
+      - name: Avg score
+        id: score_avg
+        data: items.score_avg
+        modify: "x === null ? '-' : parseFloat(x).toFixed(1)"
+
+  - type: custom:flex-table-card
+    title: By region
+    entities:
+      include: sensor.cellar_tracker_by_region
+    sort_by: count-
+    columns:
+      - name: Region
+        id: name
+        data: items.name
+      - name: Bottles
+        id: count
+        data: items.count
+      - name: Avg value
+        id: value_avg
+        data: items.value_avg
+        modify: parseFloat(x).toFixed(0)
+      - name: Avg score
+        id: score_avg
+        data: items.score_avg
+        modify: "x === null ? '-' : parseFloat(x).toFixed(1)"
+
+  - type: custom:flex-table-card
+    title: By score band
+    entities:
+      include: sensor.cellar_tracker_by_score_band
+    sort_by: name+
+    columns:
+      - name: Band
+        id: name
+        data: items.name
+      - name: Bottles
+        id: count
+        data: items.count
+      - name: Avg value
+        id: value_avg
+        data: items.value_avg
+        modify: parseFloat(x).toFixed(0)
