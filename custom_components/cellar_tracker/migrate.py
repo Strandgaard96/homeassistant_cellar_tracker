@@ -1,9 +1,11 @@
-"""Remove entities the old per-value model registered.
+"""Remove entities the current model no longer provides.
 
-Old entities have unique_ids and no config entry, so Home Assistant writes
-`unavailable` for each of them at every start, forever -- the 30-day orphan
-purge only applies to entries already marked deleted. Left alone, upgrading
-users inherit roughly 400 grey entities to delete by hand.
+Filters on platform, not config entry: entities registered by the YAML-era
+setup have no config entry until the new entry adopts them, and orphaned
+ones never will be. Left alone, Home Assistant writes `unavailable` for each
+of them at every start, forever -- the 30-day orphan purge only applies to
+entries already marked deleted. Correct only because the manifest allows a
+single config entry.
 """
 
 from __future__ import annotations
@@ -48,7 +50,7 @@ async def async_cleanup_registry(hass: HomeAssistant, expected: set[str]) -> int
         registry.async_remove(ours[unique_id])
     if stale:
         _LOGGER.info(
-            "Removed %s Cellar Tracker entities left over from the previous "
-            "sensor model", len(stale),
+            "Removed %s Cellar Tracker entities left over from the previous sensor model",
+            len(stale),
         )
     return len(stale)

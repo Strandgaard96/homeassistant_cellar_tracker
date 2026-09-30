@@ -32,25 +32,23 @@ The integration should be available in HACS under Custom Integration, if that is
 - **Repository:** https://github.com/ahoernecke/ha_cellar_tracker
 - **Category:** Integration
 
-# Configuration:
+# Configuration
 
-Add your CellarTracker! username and password in `secrets.yaml`:
+Go to **Settings → Devices & services → Add integration**, search for **Cellar Tracker**, and sign in with your CellarTracker! username and password. The login is checked against CellarTracker! before the integration is added.
 
-```
-cellar_tracker_username: YOUR_USERNAME
-cellar_tracker_password: YOUR_PASSWORD
-```
+Only one CellarTracker! account can be added per Home Assistant instance.
 
-Then go to `configuration.yaml` and add:
+## Options
 
-```
-cellar_tracker:
-  username:  !secret cellar_tracker_username
-  password:  !secret cellar_tracker_password
-  scan_interval: 600
-```
+Open the integration and choose **Configure** to change the update interval (in seconds, default 3600, minimum 30). The integration reloads with the new interval when you save.
 
-`scan_interval` (in seconds) is optional and defaults to 1 hour (3600).
+## Changed password
+
+If CellarTracker! stops accepting your password, Home Assistant shows a **Re-authenticate** prompt for the integration. Enter the new password there; your entities are kept.
+
+## Upgrading from YAML
+
+Earlier versions were configured with a `cellar_tracker:` block in `configuration.yaml`. Delete that block (and the `cellar_tracker_username`/`cellar_tracker_password` entries in `secrets.yaml` if nothing else uses them), restart Home Assistant, then add the integration from the UI as above. Existing entity IDs, renames and areas are kept, because the sensors' unique IDs have not changed. If the block is left in place, Home Assistant shows a repair notice and ignores it.
 
 ## Entities
 
