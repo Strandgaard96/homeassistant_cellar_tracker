@@ -3,9 +3,13 @@
 from cellartracker.errors import AuthenticationError, CannotConnect
 from custom_components.cellar_tracker.const import DOMAIN
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import DOMAIN as HOMEASSISTANT_DOMAIN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
+from homeassistant.setup import async_setup_component
 
 
 async def _setup(hass: HomeAssistant, entry) -> None:
@@ -97,3 +101,16 @@ async def test_auth_failure_starts_reauth(hass: HomeAssistant, mock_client, conf
     assert config_entry.state is ConfigEntryState.SETUP_ERROR
     flows = hass.config_entries.flow.async_progress()
     assert [flow["context"]["source"] for flow in flows] == [SOURCE_REAUTH]
+
+
+async def test_yaml_block_is_rejected_with_repair_issue(hass: HomeAssistant, mock_client):
+    yaml = {DOMAIN: {CONF_USERNAME: "Alice", CONF_PASSWORD: "pw"}}
+
+    assert await async_setup_component(hass, DOMAIN, yaml)
+    await hass.async_block_till_done()
+
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    mock_client.assert_not_called()
+    issue = ir.async_get(hass).async_get_issue(HOMEASSISTANT_DOMAIN, f"config_entry_only_{DOMAIN}")
+    assert issue is not None
+    assert issue.severity is ir.IssueSeverity.ERROR

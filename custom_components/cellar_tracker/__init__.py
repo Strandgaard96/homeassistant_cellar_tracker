@@ -1,8 +1,9 @@
 """Cellar Tracker integration.
 
-Set up from a config entry. The YAML block is still accepted so existing
-users can be imported (see async_setup); it no longer configures anything
-by itself. See docs/superpowers/specs/2026-09-30-config-flow-design.md.
+Set up from a config entry created in the UI (config_flow.py). YAML is not
+supported: a leftover `cellar_tracker:` block only makes Home Assistant log an
+error and raise its own config_entry_only repair issue. See
+docs/superpowers/specs/2026-09-30-config-flow-design.md.
 """
 
 from __future__ import annotations
@@ -10,12 +11,10 @@ from __future__ import annotations
 import logging
 
 import homeassistant.helpers.config_validation as cv
-import voluptuous as vol
-from homeassistant.const import CONF_PASSWORD, CONF_SCAN_INTERVAL, CONF_USERNAME, Platform
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.typing import ConfigType
 
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, MIN_SCAN_INTERVAL
+from .const import DOMAIN
 from .coordinator import CellarTrackerConfigEntry, CellarTrackerCoordinator
 from .migrate import async_cleanup_registry
 from .naming import expected_unique_ids
@@ -24,25 +23,7 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR]
 
-CONFIG_SCHEMA = vol.Schema(
-    {
-        DOMAIN: vol.Schema(
-            {
-                vol.Required(CONF_USERNAME): cv.string,
-                vol.Required(CONF_PASSWORD): cv.string,
-                vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(
-                    vol.Coerce(int), vol.Clamp(min=MIN_SCAN_INTERVAL)
-                ),
-            }
-        )
-    },
-    extra=vol.ALLOW_EXTRA,
-)
-
-
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Accept the legacy YAML block. Import is added in a later change."""
-    return True
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: CellarTrackerConfigEntry) -> bool:
