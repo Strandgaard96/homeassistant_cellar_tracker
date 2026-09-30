@@ -1,8 +1,9 @@
 # Config flow for Cellar Tracker
 
 Date: 2026-09-30
-Status: approved in brainstorming; revised after independent review
-against HA 2026.2.3 source; pending user review
+Status: approved. Revised after independent review against HA 2026.2.3
+source, and again on 2026-09-30 to drop the YAML import in favour of a clean
+break (single existing install).
 
 ## Goal
 
@@ -15,9 +16,9 @@ losing entity IDs, renames, area assignments, history or dashboards.
 
 | Question | Decision |
 |---|---|
-| Existing YAML users | Auto-import the YAML block into a config entry once, then raise a repair issue asking the user to delete it. |
+| Existing YAML users | Clean break (revised 2026-09-30). YAML is no longer read; a leftover block triggers HA's built-in `config_entry_only` repair issue. The user removes the YAML and adds the integration in the UI. Entity IDs survive because unique IDs are unchanged (see Section 3). Chosen over auto-import because the only existing install is the author's own. |
 | Accounts per HA instance | One. `single_config_entry: true`. Entity unique IDs are unchanged. |
-| Scope | User step, import step, reauth, options flow (`scan_interval`), a service device with `has_entity_name`, translations. |
+| Scope | User step, reauth, options flow (`scan_interval`), a service device with `has_entity_name`, translations. |
 | Setup style | Modern config-entry setup: `entry.runtime_data`, `async_config_entry_first_refresh()`, `async_forward_entry_setups`. |
 
 Out of scope, for a follow-up spec: GitHub Actions for `hassfest` and
@@ -41,38 +42,12 @@ an executor thread indefinitely.
 
 ## Section 1: Setup lifecycle
 
-### `async_setup(hass, config)`
+### YAML
 
-Kept only for the YAML import. `CONFIG_SCHEMA` stays as today so that
-existing YAML still validates.
-
-```text
-if DOMAIN not in config: return True
-result = await hass.config_entries.flow.async_init(
-    DOMAIN, context={"source": SOURCE_IMPORT}, data=config[DOMAIN])
-if result is ABORT and reason != "single_instance_allowed":
-    create our own issue: domain=DOMAIN,
-        issue_id=f"deprecated_yaml_import_issue_{reason}", issue_domain=DOMAIN,
-        is_fixable=False, severity=ERROR,
-        translation_key=f"deprecated_yaml_import_issue_{reason}",
-        placeholders={"domain": DOMAIN, "integration_title": "Cellar Tracker"}
-    return True
-create core issue: domain=HOMEASSISTANT_DOMAIN,
-    issue_id=f"deprecated_yaml_{DOMAIN}", issue_domain=DOMAIN,
-    is_fixable=False, translation_key="deprecated_yaml", severity=WARNING,
-    placeholders={"domain": DOMAIN, "integration_title": "Cellar Tracker"}
-return True
-```
-
-The `deprecated_yaml` issue is raised only after the import succeeded, or
-when it aborted with `single_instance_allowed` because an entry already exists.
-Raising it before a failed import would tell the user their config had been
-imported when it had not.
-
-Accepted trade-off: while the YAML block is present, every startup fetches
-twice (import validation, then the first refresh), and `async_setup` awaits
-the import flow for up to 60 s. This matches the documented core pattern
-and ends once the user removes the YAML.
+`async_setup` is removed. `CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)`:
+if a `cellar_tracker:` block is still present, HA logs an error and raises
+the core ERROR issue `config_entry_only_cellar_tracker` (domain
+`homeassistant`, text supplied by core). Nothing is imported.
 
 ### `async_setup_entry(hass, entry)`
 
@@ -145,7 +120,6 @@ Each step catches those exceptions and maps them to a form error key:
 | Step | Form | Behaviour |
 |---|---|---|
 | `user` | `username`, `password` (password `TextSelector` with `type=password`) | Validate. `async_set_unique_id(username.lower())`, create entry titled with the username, `data={username, password}`. |
-| `import` | none | Validate the YAML's username/password. On error, abort with the error key as reason, which `async_setup` turns into the import-failure issue. On success, `async_set_unique_id(username.lower())` and create the entry: `data={username, password}`, `options={scan_interval}`. |
 | `reauth` | none | Go straight to `reauth_confirm`. `_get_reauth_entry()` reads the entry from the flow context, so nothing needs storing. |
 | `reauth_confirm` | `password` only; username shown via the auto-injected `{name}` placeholder (the entry title, which is the username) | Validate against `self._get_reauth_entry().data[username]`. On success, `async_update_reload_and_abort(self._get_reauth_entry(), data_updates={password})`, which aborts with `reauth_successful`. The unique ID cannot change because the username is not editable. |
 | options `init` | `scan_interval` as a `NumberSelector` (box mode, seconds, min 30, step 1), prefilled from options or 3600 | `async_create_entry(data=user_input)`. `OptionsFlowWithReload` reloads the entry, so there is no update listener. |
@@ -153,13 +127,12 @@ Each step catches those exceptions and maps them to a form error key:
 `async_get_options_flow` is a `@staticmethod` returning
 `CellarTrackerOptionsFlow()`.
 
-`single_config_entry: true` makes HA abort a second user or import flow with
+`single_config_entry: true` makes HA abort a second user flow with
 `single_instance_allowed` before the handler is even constructed
 (`config_entries.py` `async_init`), so no step calls
 `_abort_if_unique_id_configured()`: it would be unreachable. Reauth is
-exempt from that guard. Both entry paths still set the same unique ID, so a
-UI entry and an imported entry look identical and a core port needs no
-unique-ID migration.
+exempt from that guard. The user step still sets the unique ID so a core
+port needs no unique-ID migration.
 
 ## Section 3: Entities, device and registry continuity
 
@@ -238,12 +211,8 @@ Translation keys:
 - `config.error.invalid_auth`, `cannot_connect`, `unknown`
 - `config.abort.reauth_successful`
 - `options.step.init` (`scan_interval` label and description)
-- `issues.deprecated_yaml_import_issue_invalid_auth`,
-  `..._cannot_connect`, `..._unknown` (title and description using the
-  `{integration_title}` and `{domain}` placeholders; tell the user to set up
-  via the UI and remove the YAML)
 
-The `deprecated_yaml` and `single_instance_allowed` texts come from HA
+The `config_entry_only` and `single_instance_allowed` texts come from HA
 core's `homeassistant` domain and need no string of ours.
 
 `translations/en.json` must be full, flat text. `[%key:...%]` references
@@ -258,7 +227,7 @@ integration.
 - `__init__.py`, `coordinator.py`, `sensor.py`: per Sections 1-3.
 - `const.py`: move `DEFAULT_SCAN_INTERVAL` and `MIN_SCAN_INTERVAL` here so
   `__init__.py` and `config_flow.py` share them.
-- `README.md`: UI setup, the YAML deprecation note, options.
+- `README.md`: UI setup, options, and a note to delete the old YAML block.
 - `CLAUDE.md`: rewrite the "Coordinator + platform split" paragraph, remove
   "Config is YAML-only", update the test command.
 
@@ -288,12 +257,6 @@ New `tests/test_config_flow.py`:
 - user: `invalid_auth`, `cannot_connect`, `unknown` show the error, then
   recover on retry
 - user: second flow aborts with `single_instance_allowed`
-- import: with an entry already present, aborts `single_instance_allowed`
-  and still raises `deprecated_yaml`
-- import: creates the entry with `scan_interval` in options and raises
-  `deprecated_yaml`
-- import: bad credentials create no entry and raise
-  `deprecated_yaml_import_issue_invalid_auth`
 - reauth: success updates the password and aborts `reauth_successful`
 - reauth: wrong password shows `invalid_auth`
 - options: saving a `scan_interval` different from the current one updates
