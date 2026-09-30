@@ -1,7 +1,8 @@
 # Config flow for Cellar Tracker
 
 Date: 2026-09-30
-Status: approved in brainstorming, pending written-spec review
+Status: approved in brainstorming; revised after independent review
+against HA 2026.2.3 source; pending user review
 
 ## Goal
 
@@ -50,11 +51,15 @@ if DOMAIN not in config: return True
 result = await hass.config_entries.flow.async_init(
     DOMAIN, context={"source": SOURCE_IMPORT}, data=config[DOMAIN])
 if result is ABORT and reason != "single_instance_allowed":
-    create our own ERROR issue "deprecated_yaml_import_issue_<reason>"
+    create our own issue: domain=DOMAIN,
+        issue_id=f"deprecated_yaml_import_issue_{reason}", issue_domain=DOMAIN,
+        is_fixable=False, severity=ERROR,
+        translation_key=f"deprecated_yaml_import_issue_{reason}",
+        placeholders={"domain": DOMAIN, "integration_title": "Cellar Tracker"}
     return True
 create core issue: domain=HOMEASSISTANT_DOMAIN,
     issue_id=f"deprecated_yaml_{DOMAIN}", issue_domain=DOMAIN,
-    translation_key="deprecated_yaml", severity=WARNING,
+    is_fixable=False, translation_key="deprecated_yaml", severity=WARNING,
     placeholders={"domain": DOMAIN, "integration_title": "Cellar Tracker"}
 return True
 ```
@@ -63,6 +68,11 @@ The `deprecated_yaml` issue is raised only after the import succeeded, or
 when it aborted with `single_instance_allowed` because an entry already exists.
 Raising it before a failed import would tell the user their config had been
 imported when it had not.
+
+Accepted trade-off: while the YAML block is present, every startup fetches
+twice (import validation, then the first refresh), and `async_setup` awaits
+the import flow for up to 60 s. This matches the documented core pattern
+and ends once the user removes the YAML.
 
 ### `async_setup_entry(hass, entry)`
 
@@ -81,8 +91,9 @@ imported when it had not.
    before platforms are forwarded.
 5. `await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])`.
 
-`async_register_shutdown()` is removed: a coordinator with a config entry
-is shut down by HA when the entry unloads.
+`async_register_shutdown()` must be removed: with a config entry it raises
+`RuntimeError`. The coordinator registers `async_shutdown` via
+`config_entry.async_on_unload` in its own `__init__`.
 
 ### `async_unload_entry(hass, entry)`
 
@@ -95,8 +106,13 @@ is shut down by HA when the entry unloads.
 | Raised | Becomes |
 |---|---|
 | `AuthenticationError` | `ConfigEntryAuthFailed` |
-| `CannotConnect`, `TimeoutError` | `UpdateFailed` |
+| `CannotConnect` | `UpdateFailed` |
 | any other `Exception` | `UpdateFailed` |
+
+`TimeoutError` needs no clause: the coordinator base class already turns it
+into a failed update. `except AuthenticationError` must come before the
+generic `except Exception`, as a separate clause, so the auth error is not
+swallowed.
 
 The timeout stops the await, not the thread: a stuck `requests` call keeps
 its executor thread until the socket gives up. Acceptable at an hourly
@@ -128,17 +144,22 @@ Each step catches those exceptions and maps them to a form error key:
 
 | Step | Form | Behaviour |
 |---|---|---|
-| `user` | `username`, `password` (password `TextSelector` with `type=password`) | Validate. `async_set_unique_id(username.lower())`, `_abort_if_unique_id_configured()`, create entry titled with the username, `data={username, password}`. |
-| `import` | none | Validate the YAML's username/password. On error, abort with the error key as reason, which `async_setup` turns into the import-failure issue. On success, create the entry: `data={username, password}`, `options={scan_interval}`. |
-| `reauth` | none | Store the entry, go to `reauth_confirm`. |
-| `reauth_confirm` | `password` only; username shown via `description_placeholders` | Validate against the stored username. On success, `async_update_reload_and_abort(self._get_reauth_entry(), data_updates={password})`, which aborts with `reauth_successful`. The unique ID cannot change because the username is not editable. |
+| `user` | `username`, `password` (password `TextSelector` with `type=password`) | Validate. `async_set_unique_id(username.lower())`, create entry titled with the username, `data={username, password}`. |
+| `import` | none | Validate the YAML's username/password. On error, abort with the error key as reason, which `async_setup` turns into the import-failure issue. On success, `async_set_unique_id(username.lower())` and create the entry: `data={username, password}`, `options={scan_interval}`. |
+| `reauth` | none | Go straight to `reauth_confirm`. `_get_reauth_entry()` reads the entry from the flow context, so nothing needs storing. |
+| `reauth_confirm` | `password` only; username shown via the auto-injected `{name}` placeholder (the entry title, which is the username) | Validate against `self._get_reauth_entry().data[username]`. On success, `async_update_reload_and_abort(self._get_reauth_entry(), data_updates={password})`, which aborts with `reauth_successful`. The unique ID cannot change because the username is not editable. |
 | options `init` | `scan_interval` as a `NumberSelector` (box mode, seconds, min 30, step 1), prefilled from options or 3600 | `async_create_entry(data=user_input)`. `OptionsFlowWithReload` reloads the entry, so there is no update listener. |
 
 `async_get_options_flow` is a `@staticmethod` returning
 `CellarTrackerOptionsFlow()`.
 
 `single_config_entry: true` makes HA abort a second user or import flow with
-`single_instance_allowed` before our step runs.
+`single_instance_allowed` before the handler is even constructed
+(`config_entries.py` `async_init`), so no step calls
+`_abort_if_unique_id_configured()`: it would be unreachable. Reauth is
+exempt from that guard. Both entry paths still set the same unique ID, so a
+UI entry and an imported entry look identical and a core port needs no
+unique-ID migration.
 
 ## Section 3: Entities, device and registry continuity
 
@@ -158,7 +179,9 @@ DeviceInfo(
 
 ### Naming
 
-`_Base` sets `_attr_has_entity_name = True` and `_attr_device_info`.
+`_Base` sets `_attr_has_entity_name = True` and `_attr_device_info`, built
+from `coordinator.config_entry.entry_id`, so `build_entities(coordinator)`
+keeps its signature.
 Entity names drop their `"Cellar Tracker "` prefix:
 
 | Class | Old `_attr_name` | New `_attr_name` |
@@ -171,6 +194,12 @@ With `has_entity_name`, HA prefixes the device name, so a fresh install still
 gets `sensor.cellar_tracker_country_france` and the same friendly names.
 The value is part of the name, so names stay as `_attr_name` rather than
 `translation_key`.
+
+The lowercase-first names deliberately deviate from HA's guidance that
+entity names start with a capital letter, to keep friendly names identical
+to today's. The slug is unaffected. A core reviewer would flag this;
+revisit for the core port. If a user renames the device, every friendly
+name changes with it; entity IDs do not.
 
 ### Unique IDs and adoption
 
@@ -207,15 +236,19 @@ Translation keys:
 - `config.step.user`, `config.step.reauth_confirm` (titles, field labels,
   `data_description`)
 - `config.error.invalid_auth`, `cannot_connect`, `unknown`
-- `config.abort.already_configured`, `reauth_successful`,
-  `single_instance_allowed`
+- `config.abort.reauth_successful`
 - `options.step.init` (`scan_interval` label and description)
 - `issues.deprecated_yaml_import_issue_invalid_auth`,
-  `..._cannot_connect`, `..._unknown` (ERROR severity, tell the user to set
-  up via the UI and remove the YAML)
+  `..._cannot_connect`, `..._unknown` (title and description using the
+  `{integration_title}` and `{domain}` placeholders; tell the user to set up
+  via the UI and remove the YAML)
 
-The `deprecated_yaml` text comes from HA core's `homeassistant` domain and
-needs no string of ours.
+The `deprecated_yaml` and `single_instance_allowed` texts come from HA
+core's `homeassistant` domain and need no string of ours.
+
+`translations/en.json` must be full, flat text. `[%key:...%]` references
+are resolved only by core's build step and render literally in a custom
+integration.
 
 ### Changed files
 
@@ -238,8 +271,15 @@ Add `pytest-homeassistant-custom-component` (provides the `hass` fixture,
 uv run --with pytest-homeassistant-custom-component --with cellartracker --with pandas pytest tests -q
 ```
 
-`tests/conftest.py` enables custom integrations via the
-`enable_custom_integrations` fixture. `CellarTracker` is patched in
+`pyproject.toml` gets `asyncio_mode = "auto"` under
+`[tool.pytest.ini_options]`: the plugin's `hass` fixture is a plain
+`@pytest.fixture` over an async function, which pytest-asyncio's default
+strict mode ignores. `tests/conftest.py` defines an autouse fixture that
+requests `enable_custom_integrations` (the plugin's version is not autouse).
+Tests drive setup through `MockConfigEntry.add_to_hass` plus
+`hass.config_entries.async_setup(entry.entry_id)`, never by calling the
+coordinator directly: `async_config_entry_first_refresh` raises
+`ConfigEntryError` unless the entry is in `SETUP_IN_PROGRESS`. `CellarTracker` is patched in
 `custom_components.cellar_tracker.config_flow` and `.coordinator`.
 
 New `tests/test_config_flow.py`:
@@ -248,13 +288,17 @@ New `tests/test_config_flow.py`:
 - user: `invalid_auth`, `cannot_connect`, `unknown` show the error, then
   recover on retry
 - user: second flow aborts with `single_instance_allowed`
+- import: with an entry already present, aborts `single_instance_allowed`
+  and still raises `deprecated_yaml`
 - import: creates the entry with `scan_interval` in options and raises
   `deprecated_yaml`
 - import: bad credentials create no entry and raise
   `deprecated_yaml_import_issue_invalid_auth`
 - reauth: success updates the password and aborts `reauth_successful`
 - reauth: wrong password shows `invalid_auth`
-- options: saving updates options and reloads the entry
+- options: saving a `scan_interval` different from the current one updates
+  options and reloads the entry (`OptionsFlowWithReload` reloads only on a
+  change)
 
 New `tests/test_init.py`:
 
