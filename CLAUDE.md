@@ -15,10 +15,10 @@ uvx ruff check .          # lint
 uvx ruff check . --fix    # lint + autofix
 uvx ruff format .         # format
 uvx ty check              # type-check
-uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q   # tests
+uv run --with pytest-homeassistant-custom-component --with cellartracker --with pandas pytest tests -q   # tests
 ```
 
-All three must come back clean before committing. Config lives in `pyproject.toml`, which is dev tooling only and is never shipped to a user's HA instance.
+All of these must come back clean before committing. Config lives in `pyproject.toml`, which is dev tooling only and is never shipped to a user's HA instance.
 
 ## Development workflow
 

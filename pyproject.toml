@@ -34,3 +34,6 @@ unresolved-import = "ignore"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# pytest-homeassistant-custom-component's `hass` fixture is a plain
+# @pytest.fixture over an async function; strict mode would ignore it.
+asyncio_mode = "auto"

@@ -56,3 +56,12 @@ MAX_ATTR_BYTES = 12288
 # All 184 producers serialise to 17112 bytes, over the hard cap. The
 # Explore card renders 50 rows, so 100 is already double what is shown.
 ITEMS_LIMIT = 100
+
+# Seconds between inventory fetches. The inventory changes a few times a
+# week, so an hour is plenty; 30 s is a floor against hammering the site.
+DEFAULT_SCAN_INTERVAL = 3600
+MIN_SCAN_INTERVAL = 30
+
+# cellartracker calls requests.get with no timeout. This bounds the await,
+# not the executor thread: a hung socket keeps its thread until it gives up.
+FETCH_TIMEOUT = 60

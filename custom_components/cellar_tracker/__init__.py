@@ -16,15 +16,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import discovery as hdisco
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DEFAULT_SCORE_BANDS, DOMAIN
+from .const import DEFAULT_SCAN_INTERVAL, DEFAULT_SCORE_BANDS, DOMAIN, MIN_SCAN_INTERVAL
 from .coordinator import CellarTrackerCoordinator
 from .migrate import async_cleanup_registry
 from .naming import expected_unique_ids
 
 _LOGGER = logging.getLogger(__name__)
-
-MIN_SCAN_INTERVAL = 30
-DEFAULT_SCAN_INTERVAL = 3600
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -73,17 +70,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # deleting all 34 per-value entities, irreversibly, along with any
     # renames and area assignments the user made.
     if coordinator.data.total_bottles and coordinator.data.low:
-        removed = await async_cleanup_registry(
-            hass, expected_unique_ids(coordinator.data)
-        )
+        removed = await async_cleanup_registry(hass, expected_unique_ids(coordinator.data))
         _LOGGER.debug("Registry cleanup removed %s stale entities", removed)
     else:
         _LOGGER.warning(
-            "Skipping registry cleanup: the inventory came back empty or "
-            "without recognised columns"
+            "Skipping registry cleanup: the inventory came back empty or without recognised columns"
         )
 
-    hass.async_create_task(
-        hdisco.async_load_platform(hass, "sensor", DOMAIN, {}, config)
-    )
+    hass.async_create_task(hdisco.async_load_platform(hass, "sensor", DOMAIN, {}, config))
     return True
