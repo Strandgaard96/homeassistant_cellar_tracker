@@ -13,6 +13,7 @@ Lint and type-check via `uv` (no project venv needed, nothing to install):
 ```bash
 uvx ruff check .          # lint
 uvx ruff check . --fix    # lint + autofix
+uvx ruff format .         # format
 uvx ty check              # type-check
 uv run --with homeassistant --with cellartracker --with pytest --with pandas pytest tests -q   # tests
 ```
@@ -37,13 +38,13 @@ logger:
     custom_components.cellar_tracker: debug
 ```
 
-Config is YAML-only (no config flow). See README.md for the `cellar_tracker:` block and the Flex Table Card dashboard snippets.
+Config is YAML-only (no config flow). See README.md for the `cellar_tracker:` block; dashboard YAML lives in `docs/dashboard/`.
 
 ## Architecture
 
 **Coordinator + platform split.** `__init__.py` owns data fetching via `CellarTrackerCoordinator` (`coordinator.py`); `sensor.py` owns entities. They communicate only through `hass.data[DOMAIN]`, which holds the single coordinator instance. `async_setup()` builds the coordinator and awaits `coordinator.async_refresh()` -- not `async_config_entry_first_refresh()`, which raises unconditionally when `config_entry` is `None`, as it always is for this YAML-only integration. It then checks `last_update_success`/`data` explicitly and bails out (`return False`) on failure, registers coordinator shutdown via `async_register_shutdown()` (there is no config entry to do this for us), runs registry cleanup only when the fetched data looks trustworthy, then schedules `discovery.async_load_platform(...)` — so `async_setup_platform` can assume data is already populated. Anything that changes the shape of the data must be changed in `aggregate.py`, `naming.py`, and `sensor.py` together.
 
-**`CellarData` (`aggregate.py`) is the data contract.** `aggregate()` fetches the inventory, loads it into a pandas DataFrame, and produces a `CellarData` with: `low`, a dict of six low-cardinality dimensions (`country`, `type`, `size`, `category`, `location`, `color`) each mapping to a list of `GroupItem(name, count, value_avg, score_avg)`; `tails`, the same shape for nine long-tail/slice dimensions (`producer`, `store`, `appellation`, `varietal`, `mastervarietal`, `vintage`, `subregion`, `region`, `score_band`); and four scalars, `total_bottles`, `total_value`, `average_value`, `average_score`. `build_entities()` (`sensor.py`) walks `low` to build one `CellarValueSensor` per value, `SLICE_DIMENSIONS` to build one `CellarSliceSensor` per long-tail dimension, and the scalar specs to build four `CellarScalarSensor`s — 47 entities total. Adding a new low-cardinality or slice dimension automatically fans out into new entities; nothing here is a dict keyed by an open-ended shape any more.
+**`CellarData` (`aggregate.py`) is the data contract.** `aggregate()` fetches the inventory, loads it into a pandas DataFrame, and produces a `CellarData` with: `low`, a dict of six low-cardinality dimensions (`country`, `type`, `size`, `category`, `location`, `color`) each mapping to a list of `GroupItem(name, count, value_avg, score_avg)`; `tails`, the same shape for nine long-tail/slice dimensions (`producer`, `store`, `appellation`, `varietal`, `mastervarietal`, `vintage`, `subregion`, `region`, `score_band`); and four scalars, `total_bottles`, `total_value`, `average_value`, `average_score`. `build_entities()` (`sensor.py`) walks `low` to build one `CellarValueSensor` per value, `SLICE_DIMENSIONS` to build one `CellarSliceSensor` per long-tail dimension, and the scalar specs to build four `CellarScalarSensor`s (count is data-dependent: one entity per low-cardinality value, 9 slice, 4 scalar). Adding a new low-cardinality or slice dimension automatically fans out into new entities; nothing here is a dict keyed by an open-ended shape any more.
 
 **Entities are created once, at setup.** The set of sensors is frozen from the first fetch. A new country or producer appearing in CellarTracker later produces no new entity until Home Assistant restarts. `async_cleanup_registry` (`migrate.py`) removes any registry entry not in `expected_unique_ids(coordinator.data)`, so entities orphaned by a model or naming change (including the old sensor model) disappear automatically on the next start rather than lingering as unavailable.
 
@@ -61,4 +62,4 @@ Config is YAML-only (no config flow). See README.md for the `cellar_tracker:` bl
 
 `manifest.json` `requirements` declares `cellartracker` and `pandas`. pandas is **not** part of Home Assistant core, so it must stay declared; it was previously omitted and the integration silently relied on some other component having pulled it in. Any new third-party import needs a matching `requirements` entry.
 
-`manifest.json` `version` is a bare date string and has not been bumped for the current changes — do that as part of a release.
+`manifest.json` `version` is a bare date string (`YYYYMMDD`); bump it on each release.
