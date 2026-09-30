@@ -20,16 +20,36 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .aggregate import items_payload
 from .const import DOMAIN, LOW_CARDINALITY
-from .coordinator import CellarTrackerCoordinator
+from .coordinator import CellarTrackerConfigEntry, CellarTrackerCoordinator
 from .naming import SLICE_DIMENSIONS, unique_slugs
 
 
 class _Base(CoordinatorEntity[CellarTrackerCoordinator], SensorEntity):
-    """Shared availability policy."""
+    """Shared device, naming and availability policy.
+
+    has_entity_name prefixes the device name, so "total bottles" still
+    becomes sensor.cellar_tracker_total_bottles and the friendly name
+    "total bottles", exactly as before the config flow.
+    """
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator: CellarTrackerCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, coordinator.config_entry.entry_id)},
+            name="Cellar Tracker",
+            manufacturer="CellarTracker!",
+            entry_type=DeviceEntryType.SERVICE,
+            configuration_url="https://www.cellartracker.com",
+        )
 
     @property
     def available(self) -> bool:
@@ -54,7 +74,7 @@ class CellarValueSensor(_Base):
         self._dimension = dimension
         self._value = value
         self._attr_unique_id = f"{DOMAIN}_{dimension}_{slug}"
-        self._attr_name = f"Cellar Tracker {dimension} {value}"
+        self._attr_name = f"{dimension} {value}"
 
     def _item(self):
         for item in self.coordinator.data.low.get(self._dimension, []):
@@ -98,7 +118,7 @@ class CellarSliceSensor(_Base):
         super().__init__(coordinator)
         self._dimension = dimension
         self._attr_unique_id = f"{DOMAIN}_by_{dimension}"
-        self._attr_name = f"Cellar Tracker by {dimension}"
+        self._attr_name = f"by {dimension}"
 
     def _items(self):
         return self.coordinator.data.tails.get(self._dimension, [])
@@ -137,23 +157,39 @@ CURRENCY = object()
 
 SCALAR_SPECS = (
     (
-        "total_bottles", "Cellar Tracker total bottles",
-        None, SensorStateClass.MEASUREMENT, "bottles", "mdi:bottle-wine",
+        "total_bottles",
+        "total bottles",
+        None,
+        SensorStateClass.MEASUREMENT,
+        "bottles",
+        "mdi:bottle-wine",
     ),
     # monetary requires TOTAL: sensor/const.py maps MONETARY to {TOTAL}
     # only, and measurement logs a warning on every install.
     (
-        "total_value", "Cellar Tracker total value",
-        SensorDeviceClass.MONETARY, SensorStateClass.TOTAL, CURRENCY, None,
+        "total_value",
+        "total value",
+        SensorDeviceClass.MONETARY,
+        SensorStateClass.TOTAL,
+        CURRENCY,
+        None,
     ),
     # An average is not a total, so it gets no device_class at all.
     (
-        "average_value", "Cellar Tracker average value",
-        None, SensorStateClass.MEASUREMENT, CURRENCY, "mdi:cash",
+        "average_value",
+        "average value",
+        None,
+        SensorStateClass.MEASUREMENT,
+        CURRENCY,
+        "mdi:cash",
     ),
     (
-        "average_score", "Cellar Tracker average score",
-        None, SensorStateClass.MEASUREMENT, "points", "mdi:star",
+        "average_score",
+        "average score",
+        None,
+        SensorStateClass.MEASUREMENT,
+        "points",
+        "mdi:star",
     ),
 )
 
@@ -181,18 +217,17 @@ def build_entities(coordinator) -> list[SensorEntity]:
         items = coordinator.data.low.get(dimension, [])
         slugs = unique_slugs([item.name for item in items])
         for item in items:
-            entities.append(
-                CellarValueSensor(coordinator, dimension, item.name, slugs[item.name])
-            )
+            entities.append(CellarValueSensor(coordinator, dimension, item.name, slugs[item.name]))
     for dimension in SLICE_DIMENSIONS:
         entities.append(CellarSliceSensor(coordinator, dimension))
     entities.extend(_scalars(coordinator))
     return entities
 
 
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    """Set up from discovery only."""
-    if discovery_info is None:
-        return
-    coordinator = hass.data[DOMAIN]
-    async_add_entities(build_entities(coordinator))
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: CellarTrackerConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up sensors from a config entry."""
+    async_add_entities(build_entities(entry.runtime_data))
