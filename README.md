@@ -22,7 +22,6 @@ This is an unofficial integration of Cellar Tracker for Home Assistant, the deve
 - [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom) - Available in HACS
 - [Flex Table Card](https://github.com/custom-cards/flex-table-card/) - Available in HACS
 - **(Optional)** [card-mod](https://github.com/thomasloven/lovelace-card-mod) - Available in HACS - not required by either dashboard YAML below, but handy for further styling
-- **(Optional)** secrets.yaml - https://www.home-assistant.io/docs/configuration/secrets/
 
 # Installation
 The integration should be available in HACS under Custom Integration, if that is not the case, just add manually the repository:
