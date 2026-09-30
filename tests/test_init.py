@@ -1,8 +1,8 @@
 """Config entry setup, unload and registry continuity."""
 
-from cellartracker.errors import CannotConnect
+from cellartracker.errors import AuthenticationError, CannotConnect
 from custom_components.cellar_tracker.const import DOMAIN
-from homeassistant.config_entries import ConfigEntryState
+from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -87,3 +87,13 @@ async def test_stale_yaml_era_entity_is_removed(hass: HomeAssistant, mock_client
     await _setup(hass, config_entry)
 
     assert registry.async_get(stale.entity_id) is None
+
+
+async def test_auth_failure_starts_reauth(hass: HomeAssistant, mock_client, config_entry):
+    mock_client.return_value.get_inventory.side_effect = AuthenticationError
+
+    await _setup(hass, config_entry)
+
+    assert config_entry.state is ConfigEntryState.SETUP_ERROR
+    flows = hass.config_entries.flow.async_progress()
+    assert [flow["context"]["source"] for flow in flows] == [SOURCE_REAUTH]

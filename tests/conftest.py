@@ -21,13 +21,16 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 
 @pytest.fixture
 def mock_client():
-    """Patch the CellarTracker class the coordinator instantiates.
+    """Patch the CellarTracker class in both places it is instantiated.
 
     Configure behaviour through mock_client.return_value.get_inventory.
     """
     cls = MagicMock()
     cls.return_value.get_inventory.return_value = [dict(row) for row in SAMPLE_ROWS]
-    with patch("custom_components.cellar_tracker.coordinator.CellarTracker", cls):
+    with (
+        patch("custom_components.cellar_tracker.coordinator.CellarTracker", cls),
+        patch("custom_components.cellar_tracker.config_flow.CellarTracker", cls),
+    ):
         yield cls
 
 

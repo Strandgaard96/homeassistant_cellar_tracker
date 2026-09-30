@@ -1,0 +1,49 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to CellarTracker!",
+        "description": "Sign in with your CellarTracker! account.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "username": "The username you sign in with at cellartracker.com.",
+          "password": "Your CellarTracker! password."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate CellarTracker!",
+        "description": "CellarTracker! rejected the password for {name}. Enter the current password.",
+        "data": {
+          "password": "Password"
+        },
+        "data_description": {
+          "password": "Your CellarTracker! password."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password.",
+      "cannot_connect": "Could not reach CellarTracker!. Try again later.",
+      "unknown": "Unexpected error. See the Home Assistant log for details."
+    },
+    "abort": {
+      "reauth_successful": "Re-authentication was successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Cellar Tracker options",
+        "data": {
+          "scan_interval": "Update interval"
+        },
+        "data_description": {
+          "scan_interval": "Seconds between inventory fetches. Minimum 30."
+        }
+      }
+    }
+  }
+}
