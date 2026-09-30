@@ -66,7 +66,7 @@ class CellarTrackerCoordinator(DataUpdateCoordinator[CellarData]):
             # Must stay ahead of the generic clause, or reauth never starts.
             raise ConfigEntryAuthFailed("CellarTracker rejected the credentials") from err
         except Exception as err:
-            raise UpdateFailed(f"CellarTracker update failed: {err}") from err
+            raise UpdateFailed(f"CellarTracker update failed: {err!r}") from err
         self._ever_succeeded = True
         return data
 

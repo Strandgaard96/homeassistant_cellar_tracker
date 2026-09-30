@@ -1,5 +1,7 @@
 """Config and options flow tests."""
 
+from datetime import timedelta
+
 import pytest
 from cellartracker.errors import AuthenticationError, CannotConnect
 from custom_components.cellar_tracker.const import DOMAIN
@@ -27,6 +29,20 @@ async def test_user_flow_creates_entry(hass: HomeAssistant, mock_client):
     assert result["title"] == "Alice"
     assert result["data"] == {CONF_USERNAME: "Alice", CONF_PASSWORD: "pw"}
     assert result["result"].unique_id == "alice"
+
+
+async def test_user_flow_strips_username_whitespace(hass: HomeAssistant, mock_client):
+    result = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_USERNAME: "  Alice ", CONF_PASSWORD: "pw"}
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Alice"
+    assert result["data"][CONF_USERNAME] == "Alice"
+    assert result["result"].unique_id == "alice"
+    mock_client.assert_any_call("Alice", "pw")
 
 
 async def test_user_flow_accepts_an_empty_cellar(hass: HomeAssistant, mock_client):
@@ -133,3 +149,4 @@ async def test_options_flow_saves_interval_and_reloads(
     assert config_entry.options == {CONF_SCAN_INTERVAL: 600}
     assert isinstance(config_entry.options[CONF_SCAN_INTERVAL], int)
     assert mock_client.return_value.get_inventory.call_count == 2
+    assert config_entry.runtime_data.update_interval == timedelta(seconds=600)

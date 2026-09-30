@@ -51,7 +51,7 @@ Earlier versions were configured with a `cellar_tracker:` block in `configuratio
 
 ## Entities
 
-The integration creates 47 entities from your inventory:
+The integration creates one entity per distinct value of the low-cardinality dimensions, plus 9 slice and 4 scalar sensors (47 on the author's cellar):
 
 | Shape | Count | Example entity ID | Notes |
 | --- | --- | --- | --- |

@@ -14,7 +14,7 @@
 
 - Domain `cellar_tracker`; entity unique IDs unchanged: `cellar_tracker_{dimension}_{slug}`, `cellar_tracker_by_{dimension}`, `cellar_tracker_{key}`.
 - One config entry per HA instance: manifest `"single_config_entry": true`.
-- Config entry unique ID: `username.lower()`, set by both the user and import steps.
+- Config entry unique ID: `username.lower()`, set by the user step.
 - Credentials in `entry.data` (`username`, `password`); `scan_interval` (int seconds) in `entry.options`, default 3600, minimum 30.
 - Network fetch timeout: 60 s (`FETCH_TIMEOUT`), in both the flow and the coordinator.
 - Device: name `Cellar Tracker`, manufacturer `CellarTracker!`, `DeviceEntryType.SERVICE`, `configuration_url` `https://www.cellartracker.com`, identifiers `{(DOMAIN, entry.entry_id)}`.
@@ -181,7 +181,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ### Task 2: Config-entry setup, coordinator and entities
 
-After this task the integration sets up from a config entry. YAML is ignored until Task 4 adds the import; the branch is not releasable in between.
+After this task the integration sets up from a config entry. YAML is still accepted by the old schema but configures nothing until Task 4 removes it; the branch is not releasable in between.
 
 **Files:**
 - Modify: `custom_components/cellar_tracker/coordinator.py` (whole file)
@@ -520,6 +520,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: CellarTrackerConfigEntr
     """Unload a config entry. The coordinator shuts itself down via async_on_unload."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 ```
+
+> Task 4 later replaces the docstring, the YAML `CONFIG_SCHEMA` and `async_setup` above with `cv.config_entry_only_config_schema(DOMAIN)`.
 
 - [ ] **Step 6: Update `sensor.py`**
 

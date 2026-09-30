@@ -36,7 +36,7 @@ class _Base(CoordinatorEntity[CellarTrackerCoordinator], SensorEntity):
 
     has_entity_name prefixes the device name, so "total bottles" still
     becomes sensor.cellar_tracker_total_bottles and the friendly name
-    "total bottles", exactly as before the config flow.
+    "Cellar Tracker total bottles", exactly as before the config flow.
     """
 
     _attr_has_entity_name = True

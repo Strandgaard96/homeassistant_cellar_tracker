@@ -105,7 +105,7 @@ class CellarTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            username = user_input[CONF_USERNAME]
+            username = user_input[CONF_USERNAME].strip()
             password = user_input[CONF_PASSWORD]
             error = await _async_error_key(self.hass, username, password)
             if error is None:

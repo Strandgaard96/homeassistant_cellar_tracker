@@ -54,6 +54,8 @@ async def test_cannot_connect_retries_setup(hass: HomeAssistant, mock_client, co
     await _setup(hass, config_entry)
 
     assert config_entry.state is ConfigEntryState.SETUP_RETRY
+    # CannotConnect() stringifies to "", so the type must come from repr().
+    assert "CannotConnect" in (config_entry.reason or "")
 
 
 async def test_unload(hass: HomeAssistant, mock_client, config_entry):
