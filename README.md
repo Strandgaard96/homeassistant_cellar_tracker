@@ -16,6 +16,9 @@ This is an unofficial integration of Cellar Tracker for Home Assistant, the deve
 
 "CellarTracker!" is a trademark of CellarTracker! LLC
 
+# Credits
+This project started as a fork of [ahoernecke/ha_cellar_tracker](https://github.com/ahoernecke/ha_cellar_tracker) by [@ahoernecke](https://github.com/ahoernecke) and its contributors. It has since been rewritten (UI config flow, a new sensor model, a single data coordinator) and is maintained here as a standalone integration. Report issues and send pull requests to this repository, not upstream.
+
 # Requirements
 - Cellar Tracker account - https://cellartracker.com
 - HACS: Home Assistant Community Store - https://hacs.xyz/
@@ -33,8 +36,6 @@ This is an unofficial integration of Cellar Tracker for Home Assistant, the deve
 
 2. Install **Cellar Tracker** from HACS and restart Home Assistant.
 3. Set it up from the UI, as described under [Configuration](#configuration).
-
-This is a fork of [ahoernecke/ha_cellar_tracker](https://github.com/ahoernecke/ha_cellar_tracker), rewritten with a UI config flow and a new sensor model.
 
 ## Removal
 
@@ -185,4 +186,4 @@ cards:
 `by_producer` shows the top 50 producers by count (the `items` attribute itself is capped by the integration; the sensor's `items_total` attribute carries the full distinct-value count so a card can show e.g. "50 of N"). Explicit column `id`s are required: with list-of-dict expansion, `sort_by` needs them. `sensor.cellar_tracker_by_producer`, `sensor.cellar_tracker_by_region` and `sensor.cellar_tracker_by_score_band` can be swapped for any of the other slice sensors (`by_store`, `by_appellation`, `by_varietal`, `by_mastervarietal`, `by_vintage`, `by_subregion`) using the same column layout.
 
 # Contribute
-Feel free to contribute by opening a PR, issue on this project
+Open an issue or a pull request at https://github.com/Strandgaard96/homeassistant_cellar_tracker.
