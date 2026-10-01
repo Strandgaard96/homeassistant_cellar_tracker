@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Home Assistant **custom integration** (HACS-distributed) that pulls a CellarTracker wine inventory and exposes it as sensors. It is not a standalone app: there is no build step and no CI. Of the aggregation and naming logic, only `aggregate.py`, `const.py` and `naming.py` are plain Python with no Home Assistant import; `migrate.py` does import `homeassistant.core` and `homeassistant.helpers.entity_registry`. All of it is covered by a `pytest` suite under `tests/`. The integration itself is under `custom_components/cellar_tracker/`.
+A Home Assistant **custom integration** (HACS-distributed) that pulls a CellarTracker wine inventory and exposes it as sensors. It is not a standalone app: there is no build step. CI (`.github/workflows/validate.yml`) runs only hassfest and the HACS validator; tests, ruff and ty run locally. Brand icons live in `custom_components/cellar_tracker/brand/`. Of the aggregation and naming logic, only `aggregate.py`, `const.py` and `naming.py` are plain Python with no Home Assistant import; `migrate.py` does import `homeassistant.core` and `homeassistant.helpers.entity_registry`. All of it is covered by a `pytest` suite under `tests/`. The integration itself is under `custom_components/cellar_tracker/`.
 
 ## Commands
 

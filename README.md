@@ -24,12 +24,21 @@ This is an unofficial integration of Cellar Tracker for Home Assistant, the deve
 - **(Optional)** [card-mod](https://github.com/thomasloven/lovelace-card-mod) - Available in HACS - not required by either dashboard YAML below, but handy for further styling
 
 # Installation
-The integration should be available in HACS under Custom Integration, if that is not the case, just add manually the repository:
+1. In HACS, open the three-dot menu → **Custom repositories** and add this repository:
 
-![HACS Adding a repository](./img/hacs_1.png)
+   - **Repository:** https://github.com/Strandgaard96/homeassistant_cellar_tracker
+   - **Category:** Integration
 
-- **Repository:** https://github.com/ahoernecke/ha_cellar_tracker
-- **Category:** Integration
+   ![HACS Adding a repository](./img/hacs_1.png)
+
+2. Install **Cellar Tracker** from HACS and restart Home Assistant.
+3. Set it up from the UI, as described under [Configuration](#configuration).
+
+This is a fork of [ahoernecke/ha_cellar_tracker](https://github.com/ahoernecke/ha_cellar_tracker), rewritten with a UI config flow and a new sensor model.
+
+## Removal
+
+Delete the integration under **Settings → Devices & services**, remove it in HACS, and restart Home Assistant.
 
 # Configuration
 
