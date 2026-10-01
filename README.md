@@ -1,3 +1,5 @@
+> **This repository has moved.** Development continues at **https://github.com/Strandgaard96/homeassistant-cellartracker**. This fork is archived; install from the new repository in HACS.
+
 <h2 align="center">
   <a href="https://www.cellartracker.com/"><img src="./img/ct_logo.png" alt="Cellar Tracker logo" width="200"></a>
   <br>
