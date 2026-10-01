@@ -21,48 +21,19 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .aggregate import items_payload
 from .const import DOMAIN, LOW_CARDINALITY
-from .coordinator import CellarTrackerConfigEntry, CellarTrackerCoordinator
+from .coordinator import CellarTrackerConfigEntry
+from .entity import CellarTrackerEntity
 from .naming import SLICE_DIMENSIONS, unique_slugs
 
-
-class _Base(CoordinatorEntity[CellarTrackerCoordinator], SensorEntity):
-    """Shared device, naming and availability policy.
-
-    has_entity_name prefixes the device name, so "total bottles" still
-    becomes sensor.cellar_tracker_total_bottles and the friendly name
-    "Cellar Tracker total bottles", exactly as before the config flow.
-    """
-
-    _attr_has_entity_name = True
-
-    def __init__(self, coordinator: CellarTrackerCoordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, coordinator.config_entry.entry_id)},
-            name="Cellar Tracker",
-            manufacturer="CellarTracker!",
-            entry_type=DeviceEntryType.SERVICE,
-            configuration_url="https://www.cellartracker.com",
-        )
-
-    @property
-    def available(self) -> bool:
-        """Stay available on stale data once any fetch has succeeded.
-
-        CoordinatorEntity.available defaults to last_update_success, which
-        would blank every entity on one failed refresh. Wrong for an
-        inventory that changes a few times a week.
-        """
-        return self.coordinator.ever_succeeded
+# Read-only platform; the coordinator already serialises fetching.
+PARALLEL_UPDATES = 0
 
 
-class CellarValueSensor(_Base):
+class CellarValueSensor(CellarTrackerEntity, SensorEntity):
     """One distinct value of a low-cardinality dimension. State = bottles."""
 
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -101,7 +72,7 @@ class CellarValueSensor(_Base):
         }
 
 
-class CellarSliceSensor(_Base):
+class CellarSliceSensor(CellarTrackerEntity, SensorEntity):
     """A long-tail dimension. State = distinct values, breakdown in `items`.
 
     `items` is excluded from the recorder. This is not tidiness: the
@@ -133,7 +104,7 @@ class CellarSliceSensor(_Base):
         return {"items": items_payload(items), "items_total": len(items)}
 
 
-class CellarScalarSensor(_Base):
+class CellarScalarSensor(CellarTrackerEntity, SensorEntity):
     """One of the four cellar-wide numbers."""
 
     def __init__(self, coordinator, key: str, name: str, **attrs) -> None:

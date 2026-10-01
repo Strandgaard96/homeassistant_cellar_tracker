@@ -18,3 +18,8 @@ def test_every_scalar_uses_a_valid_device_and_state_class_pairing():
 def test_slice_sensors_exclude_items_from_the_recorder():
     # Without this the recorder blanks the entity's whole attribute dict.
     assert "items" in sensor.CellarSliceSensor._unrecorded_attributes
+
+
+def test_parallel_updates_is_zero():
+    # quality-scale rule parallel-updates: read-only coordinator platform.
+    assert sensor.PARALLEL_UPDATES == 0

@@ -30,6 +30,7 @@
       "unknown": "Unexpected error. See the Home Assistant log for details."
     },
     "abort": {
+      "already_configured": "This CellarTracker! account is already configured.",
       "reauth_successful": "Re-authentication was successful."
     }
   },

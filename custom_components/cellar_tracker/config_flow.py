@@ -90,9 +90,11 @@ async def _async_error_key(hass: HomeAssistant, username: str, password: str) ->
 class CellarTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
     """Set up one CellarTracker account.
 
-    manifest.json sets single_config_entry, so HA aborts a second user or
-    import flow with single_instance_allowed before this class is even
-    constructed; no step needs _abort_if_unique_id_configured().
+    manifest.json sets single_config_entry, so HA normally aborts a second
+    flow with single_instance_allowed before this class is constructed. The
+    explicit unique-ID guard is kept anyway as the quality-scale
+    unique-config-entry check, and for safety if single_config_entry is ever
+    dropped.
     """
 
     VERSION = 1
@@ -110,6 +112,7 @@ class CellarTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
             error = await _async_error_key(self.hass, username, password)
             if error is None:
                 await self.async_set_unique_id(username.lower())
+                self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=username,
                     data={CONF_USERNAME: username, CONF_PASSWORD: password},

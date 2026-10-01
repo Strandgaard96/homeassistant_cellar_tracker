@@ -129,10 +129,11 @@ Each step catches those exceptions and maps them to a form error key:
 
 `single_config_entry: true` makes HA abort a second user flow with
 `single_instance_allowed` before the handler is even constructed
-(`config_entries.py` `async_init`), so no step calls
-`_abort_if_unique_id_configured()`: it would be unreachable. Reauth is
-exempt from that guard. The user step still sets the unique ID so a core
-port needs no unique-ID migration.
+(`config_entries.py` `async_init`). The user step calls
+`_abort_if_unique_id_configured()` anyway, as the explicit
+`unique-config-entry` guard, though `single_config_entry` normally aborts
+first. Reauth is exempt from that guard. The user step sets the unique ID so
+a core port needs no unique-ID migration.
 
 ## Section 3: Entities, device and registry continuity
 
@@ -152,7 +153,7 @@ DeviceInfo(
 
 ### Naming
 
-`_Base` sets `_attr_has_entity_name = True` and `_attr_device_info`, built
+`CellarTrackerEntity` (in `entity.py`) sets `_attr_has_entity_name = True` and `_attr_device_info`, built
 from `coordinator.config_entry.entry_id`, so `build_entities(coordinator)`
 keeps its signature.
 Entity names drop their `"Cellar Tracker "` prefix:
@@ -209,6 +210,7 @@ Translation keys:
 - `config.step.user`, `config.step.reauth_confirm` (titles, field labels,
   `data_description`)
 - `config.error.invalid_auth`, `cannot_connect`, `unknown`
+- `config.abort.already_configured`
 - `config.abort.reauth_successful`
 - `options.step.init` (`scan_interval` label and description)
 
