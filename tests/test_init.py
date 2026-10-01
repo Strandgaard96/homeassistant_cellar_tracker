@@ -40,8 +40,12 @@ async def test_entities_belong_to_one_service_device(
 ):
     await _setup(hass, config_entry)
 
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, config_entry.entry_id)})
-    assert device is not None
+    # async_get_device(identifiers=...) is deprecated from HA 2026.7 and its
+    # replacement does not exist in 2026.2, so look the device up by entry.
+    devices = dr.async_entries_for_config_entry(dr.async_get(hass), config_entry.entry_id)
+    assert len(devices) == 1
+    device = devices[0]
+    assert (DOMAIN, config_entry.entry_id) in device.identifiers
     assert device.name == "Cellar Tracker"
     assert device.entry_type is dr.DeviceEntryType.SERVICE
     entity = er.async_get(hass).async_get("sensor.cellar_tracker_total_bottles")
